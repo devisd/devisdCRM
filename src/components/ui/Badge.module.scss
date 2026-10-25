@@ -1,0 +1,58 @@
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.4;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+.neutral {
+  background: var(--color-surface-muted);
+  color: var(--color-text-secondary);
+  border-color: var(--color-border);
+}
+
+.new {
+  background: var(--color-primary-soft);
+  color: var(--status-new);
+}
+
+.inProgress {
+  background: var(--color-warning-soft);
+  color: var(--status-in-progress);
+}
+
+.waiting {
+  background: #f4f3ff;
+  color: var(--status-waiting);
+}
+
+.completed {
+  background: var(--color-success-soft);
+  color: var(--status-completed);
+}
+
+.cancelled {
+  background: var(--color-surface-muted);
+  color: var(--status-cancelled);
+}
+
+.unpaid {
+  background: var(--color-danger-soft);
+  color: var(--status-unpaid);
+}
+
+.partial {
+  background: var(--color-warning-soft);
+  color: var(--status-partial);
+}
+
+.paid {
+  background: var(--color-success-soft);
+  color: var(--status-paid);
+}
