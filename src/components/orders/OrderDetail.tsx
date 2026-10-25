@@ -40,6 +40,7 @@ import {
   paymentStatusTone,
 } from "@/lib/services/orderStatusTone";
 import { AddPaymentDialog } from "@/components/orders/AddPaymentDialog";
+import { routes } from "@/lib/routes";
 import type { Order } from "@/types";
 import styles from "./OrderDetail.module.scss";
 
@@ -132,7 +133,7 @@ export function OrderDetail({ orderId }: OrderDetailProps) {
       <EmptyState
         title="Заказ не найден"
         description="Возможно, запись была удалена или идентификатор указан неверно."
-        action={<LinkButton href="/orders">К списку заказов</LinkButton>}
+        action={<LinkButton href={routes.orders}>К списку заказов</LinkButton>}
       />
     );
   }
@@ -156,13 +157,13 @@ export function OrderDetail({ orderId }: OrderDetailProps) {
             >
               Добавить оплату
             </Button>
-            <LinkButton href={`/orders/${order.id}/edit`} variant="secondary">
+            <LinkButton href={routes.orderEdit(order.id)} variant="secondary">
               Редактировать
             </LinkButton>
             <Button type="button" variant="ghost" onClick={() => setArchiveOpen(true)}>
               {order.isArchived ? "Вернуть из архива" : "В архив"}
             </Button>
-            <LinkButton href="/orders" variant="ghost">
+            <LinkButton href={routes.orders} variant="ghost">
               К списку
             </LinkButton>
           </>
@@ -188,7 +189,7 @@ export function OrderDetail({ orderId }: OrderDetailProps) {
             <p className={styles.label}>Клиент</p>
             <p className={styles.value}>
               {client ? (
-                <Link href={`/clients/${client.id}`}>{client.name}</Link>
+                <Link href={routes.clientDetail(client.id)}>{client.name}</Link>
               ) : (
                 "Клиент не найден"
               )}

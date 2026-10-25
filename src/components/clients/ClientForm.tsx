@@ -18,6 +18,7 @@ import {
   formValuesToClientInput,
   type ClientFormValues,
 } from "@/lib/validation/clientForm";
+import { routes } from "@/lib/routes";
 import type { Client } from "@/types";
 import styles from "./ClientForm.module.scss";
 
@@ -72,7 +73,7 @@ export function ClientForm({ mode, client }: ClientFormProps) {
       if (mode === "create") {
         const created = await createClient(input);
         setIsDirty(false);
-        router.push(`/clients/${created.id}`);
+        router.push(routes.clientDetail(created.id));
         return;
       }
 
@@ -82,7 +83,7 @@ export function ClientForm({ mode, client }: ClientFormProps) {
 
       const updated = await updateClient(client.id, input);
       setIsDirty(false);
-      router.push(`/clients/${updated.id}`);
+      router.push(routes.clientDetail(updated.id));
     } catch (error) {
       setFormError(toUserDbMessage(error));
     } finally {
@@ -90,7 +91,7 @@ export function ClientForm({ mode, client }: ClientFormProps) {
     }
   };
 
-  const cancelHref = client ? `/clients/${client.id}` : "/clients";
+  const cancelHref = client ? routes.clientDetail(client.id) : routes.clients;
 
   return (
     <form className={styles.form} onSubmit={onSubmit} noValidate>

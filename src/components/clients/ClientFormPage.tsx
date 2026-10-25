@@ -9,6 +9,7 @@ import { ClientForm } from "@/components/clients/ClientForm";
 import { useDbReady } from "@/lib/hooks/useDbReady";
 import { useAsyncResource } from "@/lib/hooks/useAsyncResource";
 import { getClientById } from "@/lib/repositories/clients";
+import { routes } from "@/lib/routes";
 
 type ClientFormPageProps = {
   mode: "create" | "edit";
@@ -42,7 +43,7 @@ export function ClientFormPage({ mode, clientId }: ClientFormPageProps) {
           title="Новый клиент"
           description="Укажите имя и при необходимости контакты и заметки."
           actions={
-            <LinkButton href="/clients" variant="secondary">
+            <LinkButton href={routes.clients} variant="secondary">
               Назад
             </LinkButton>
           }
@@ -69,7 +70,7 @@ export function ClientFormPage({ mode, clientId }: ClientFormPageProps) {
       <EmptyState
         title="Клиент не найден"
         description="Нельзя редактировать отсутствующую запись."
-        action={<LinkButton href="/clients">К списку клиентов</LinkButton>}
+        action={<LinkButton href={routes.clients}>К списку клиентов</LinkButton>}
       />
     );
   }
@@ -85,7 +86,7 @@ export function ClientFormPage({ mode, clientId }: ClientFormPageProps) {
         title="Редактирование клиента"
         description="Укажите имя и при необходимости контакты и заметки."
         actions={
-          <LinkButton href={`/clients/${client.id}`} variant="secondary">
+          <LinkButton href={routes.clientDetail(client.id)} variant="secondary">
             Назад
           </LinkButton>
         }
