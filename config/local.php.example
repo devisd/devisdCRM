@@ -1,0 +1,29 @@
+<?php
+
+declare(strict_types=1);
+
+/*
+ * Devis Studio CRM API — configuration template (no real values).
+ *
+ * 1. Copy to config/local.php next to the private api/ directory:
+ *      local development:  <repo>/config/local.php   (ignored by git)
+ *      REG.RU:             <home>/devis-crm/config/local.php   (outside the webroot)
+ * 2. Replace every "__CHANGE_ME__" with values from ISPmanager → MySQL databases.
+ *    The API refuses to start while placeholders are present.
+ * 3. Never upload this file into the public site directory or into out/.
+ */
+
+return [
+    'db' => [
+        // MySQL server host as shown in ISPmanager (often "localhost").
+        'host' => 'localhost',
+        // MySQL port; 3306 unless the hosting panel says otherwise.
+        'port' => 3306,
+        // Database name created in ISPmanager.
+        'name' => '__CHANGE_ME__',
+        // Database user with access to that database only.
+        'user' => '__CHANGE_ME__',
+        // Database user password.
+        'password' => '__CHANGE_ME__',
+    ],
+];
