@@ -1,23 +1,32 @@
 import { z } from "zod";
+import { maxLengthMessage, TEXT_LIMITS } from "@/lib/validation/schemas";
 
-const optionalText = z.string().trim();
+const shortText = z
+  .string()
+  .trim()
+  .max(TEXT_LIMITS.short, maxLengthMessage(TEXT_LIMITS.short));
+const longText = z
+  .string()
+  .trim()
+  .max(TEXT_LIMITS.long, maxLengthMessage(TEXT_LIMITS.long));
 
 export const clientFormSchema = z.object({
-  name: z.string().trim().min(1, "Укажите имя или название"),
-  contactName: optionalText,
-  phone: optionalText,
-  email: z
+  name: z
     .string()
     .trim()
-    .refine(
-      (value) => value === "" || z.string().email().safeParse(value).success,
-      "Некорректный email",
-    ),
-  telegram: optionalText,
-  maxContact: optionalText,
-  otherContact: optionalText,
-  source: optionalText,
-  notes: optionalText,
+    .min(1, "Укажите имя или название")
+    .max(TEXT_LIMITS.short, maxLengthMessage(TEXT_LIMITS.short)),
+  contactName: shortText,
+  phone: shortText,
+  email: shortText.refine(
+    (value) => value === "" || z.string().email().safeParse(value).success,
+    "Некорректный email",
+  ),
+  telegram: shortText,
+  maxContact: shortText,
+  otherContact: longText,
+  source: shortText,
+  notes: longText,
 });
 
 export type ClientFormValues = z.infer<typeof clientFormSchema>;
