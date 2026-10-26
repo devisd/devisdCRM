@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import { Manrope } from "next/font/google";
+import { AuthGate } from "@/components/auth/AuthGate";
+import { AuthProvider } from "@/components/auth/AuthProvider";
 import { AppShell } from "@/components/layout/AppShell";
 import "./globals.scss";
 
@@ -27,7 +29,11 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="ru" className={manrope.variable}>
       <body>
-        <AppShell>{children}</AppShell>
+        <AuthProvider>
+          <AuthGate>
+            <AppShell>{children}</AppShell>
+          </AuthGate>
+        </AuthProvider>
       </body>
     </html>
   );
