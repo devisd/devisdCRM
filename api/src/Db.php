@@ -40,12 +40,17 @@ final class Db implements DatabaseProbe
         }
 
         try {
-            $this->pdo = new PDO($config->dbDsn(), $config->dbUser(), $config->dbPassword(), [
+            $pdo = new PDO($config->dbDsn(), $config->dbUser(), $config->dbPassword(), [
                 PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
                 PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
                 PDO::ATTR_EMULATE_PREPARES => false,
                 PDO::ATTR_TIMEOUT => 5,
             ]);
+            // The server default sql_mode may be non-strict (REG.RU: only NO_ENGINE_SUBSTITUTION),
+            // which silently truncates or zeroes invalid values instead of rejecting them.
+            // DATETIME values are stored in UTC.
+            $pdo->exec("SET SESSION sql_mode = 'STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION', time_zone = '+00:00'");
+            $this->pdo = $pdo;
         } catch (PDOException | \ErrorException $exception) {
             // mysqlnd may raise a PHP warning (converted to ErrorException) before the PDOException.
             // Driver messages may contain the DB host or user name, so only codes are kept.
