@@ -108,10 +108,10 @@ function server(string $method, string $uri): array
 }
 
 /**
- * Runs api/public/index.php in a separate PHP process (exit/headers/shutdown handlers stay isolated)
- * and returns what it printed to stdout.
+ * Runs api/public/index.php (or a copy of it at $indexPhp) in a separate PHP process
+ * (exit/headers/shutdown handlers stay isolated) and returns what it printed to stdout.
  */
-function runFrontController(string $method, string $uri, string $documentRoot): string
+function runFrontController(string $method, string $uri, string $documentRoot, ?string $indexPhp = null): string
 {
     if (!function_exists('proc_open') || PHP_BINARY === '') {
         throw new SkipTest('proc_open or PHP_BINARY is unavailable');
@@ -122,7 +122,7 @@ function runFrontController(string $method, string $uri, string $documentRoot): 
         var_export($method, true),
         var_export($uri, true),
         var_export($documentRoot, true),
-        var_export(dirname(__DIR__) . '/public/index.php', true),
+        var_export($indexPhp ?? dirname(__DIR__) . '/public/index.php', true),
     );
 
     $process = proc_open([PHP_BINARY, '-d', 'display_errors=0', '-r', $script], [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
@@ -138,6 +138,79 @@ function runFrontController(string $method, string $uri, string $documentRoot): 
 
     return $stdout;
 }
+
+/**
+ * Runs PHP code in a fresh process, before anything is printed there, and reports
+ * stdout, stderr and the exit code so that errors in the child cannot pass silently.
+ *
+ * @return array{stdout: string, stderr: string, exitCode: int}
+ */
+function runPhpCode(string $code): array
+{
+    if (!function_exists('proc_open') || PHP_BINARY === '') {
+        throw new SkipTest('proc_open or PHP_BINARY is unavailable');
+    }
+
+    $process = proc_open([PHP_BINARY, '-d', 'display_errors=stderr', '-r', $code], [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
+    if (!is_resource($process)) {
+        throw new AssertionFailed('could not start a PHP subprocess');
+    }
+
+    $stdout = (string) stream_get_contents($pipes[1]);
+    $stderr = (string) stream_get_contents($pipes[2]);
+    fclose($pipes[1]);
+    fclose($pipes[2]);
+
+    return ['stdout' => $stdout, 'stderr' => $stderr, 'exitCode' => proc_close($process)];
+}
+
+/**
+ * Builds a REG.RU-like layout in a temporary directory from the real sources:
+ *   <home>/www/crm.devisd.online/api/index.php   (public front controller)
+ *   <home>/devis-crm/api/src/...                 (private code)
+ * With $privateCodeInDocroot the private code is (wrongly) placed at <docroot>/src/ instead.
+ *
+ * @return array{home: string, docroot: string, index: string}
+ */
+function makeDeployLayout(bool $privateCodeInDocroot = false): array
+{
+    $home = sys_get_temp_dir() . '/devis-crm-layout-' . bin2hex(random_bytes(6));
+    $docroot = $home . '/www/crm.devisd.online';
+    $srcTarget = $privateCodeInDocroot ? $docroot . '/src' : $home . '/devis-crm/api/src';
+
+    mkdir($docroot . '/api', 0777, true);
+    copy(dirname(__DIR__) . '/public/index.php', $docroot . '/api/index.php');
+
+    $source = dirname(__DIR__) . '/src';
+    $files = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($source, FilesystemIterator::SKIP_DOTS));
+    foreach ($files as $file) {
+        $target = $srcTarget . substr($file->getPathname(), strlen($source));
+        if (!is_dir(dirname($target))) {
+            mkdir(dirname($target), 0777, true);
+        }
+        copy($file->getPathname(), $target);
+    }
+
+    return ['home' => $home, 'docroot' => $docroot, 'index' => $docroot . '/api/index.php'];
+}
+
+function removeTree(string $path): void
+{
+    if (!is_dir($path)) {
+        return;
+    }
+    $items = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($path, FilesystemIterator::SKIP_DOTS),
+        RecursiveIteratorIterator::CHILD_FIRST,
+    );
+    foreach ($items as $item) {
+        $item->isDir() ? rmdir($item->getPathname()) : unlink($item->getPathname());
+    }
+    rmdir($path);
+}
+
+const NOT_FOUND_BODY = '{"ok":false,"error":{"code":"not_found","message":"Resource not found"}}';
+const REFUSED_BODY = '{"ok":false,"error":{"code":"configuration_error","message":"Service is not configured"}}';
 
 $tests = [];
 
@@ -332,15 +405,26 @@ $tests['logger falls back to error_log when the log directory is unusable'] = st
 };
 
 $tests['send() prints the body, except for HEAD'] = static function (): void {
-    $response = JsonResponse::success(['status' => 'ok']);
+    // Each call gets its own process: once this runner (or a previous send()) has printed
+    // anything, headers count as sent and http_response_code() warns.
+    // Only stdout is observable in CLI; HTTP status and headers are not checked here.
+    $send = static fn (bool $includeBody): array => runPhpCode(sprintf(
+        'set_error_handler(static function (int $severity, string $message): bool { throw new ErrorException($message, 0, $severity); });'
+        . ' require %s;'
+        . ' DevisCrm\Api\Http\JsonResponse::success(["status" => "ok"])->send(%s);',
+        var_export(dirname(__DIR__) . '/src/bootstrap.php', true),
+        $includeBody ? 'true' : 'false',
+    ));
 
-    ob_start();
-    $response->send();
-    assertSame('{"ok":true,"data":{"status":"ok"}}', (string) ob_get_clean(), 'GET body');
+    $get = $send(true);
+    assertSame(0, $get['exitCode'], 'GET exit code (stderr: ' . trim($get['stderr']) . ')');
+    assertSame('', $get['stderr'], 'GET stderr');
+    assertSame('{"ok":true,"data":{"status":"ok"}}', $get['stdout'], 'GET body');
 
-    ob_start();
-    $response->send(false);
-    assertSame('', (string) ob_get_clean(), 'HEAD body');
+    $head = $send(false);
+    assertSame(0, $head['exitCode'], 'HEAD exit code (stderr: ' . trim($head['stderr']) . ')');
+    assertSame('', $head['stderr'], 'HEAD stderr');
+    assertSame('', $head['stdout'], 'HEAD body');
 };
 
 $tests['config rejects values that would inject DSN options'] = static function (): void {
@@ -386,6 +470,43 @@ $tests['front controller refuses private code inside the document root'] = stati
     // Simulates uploading the whole repository into the site directory.
     $output = runFrontController('GET', '/api/unknown', dirname(__DIR__, 2));
     assertSame('{"ok":false,"error":{"code":"configuration_error","message":"Service is not configured"}}', $output, 'body');
+};
+
+$tests['front controller runs with the REG.RU layout (private code outside the document root)'] = static function (): void {
+    $layout = makeDeployLayout();
+    try {
+        assertSame(NOT_FOUND_BODY, runFrontController('GET', '/api/unknown', $layout['docroot'], $layout['index']), 'body');
+    } finally {
+        removeTree($layout['home']);
+    }
+};
+
+$tests['front controller refuses private code placed directly in the document root (M1)'] = static function (): void {
+    // api/src uploaded to <docroot>/src: the code itself is public, while its parent is outside.
+    $layout = makeDeployLayout(privateCodeInDocroot: true);
+    try {
+        assertSame(REFUSED_BODY, runFrontController('GET', '/api/unknown', $layout['docroot'], $layout['index']), 'body');
+    } finally {
+        removeTree($layout['home']);
+    }
+};
+
+$tests['front controller compares whole directory names, not string prefixes'] = static function (): void {
+    // "<home>/devis" is a string prefix of "<home>/devis-crm" but not its parent directory.
+    $layout = makeDeployLayout();
+    try {
+        mkdir($layout['home'] . '/devis');
+        assertSame(NOT_FOUND_BODY, runFrontController('GET', '/api/unknown', $layout['home'] . '/devis', $layout['index']), 'body');
+    } finally {
+        removeTree($layout['home']);
+    }
+};
+
+$tests['front controller refuses when the document root is empty or cannot be resolved'] = static function (): void {
+    $missing = sys_get_temp_dir() . '/devis-crm-missing-docroot-' . bin2hex(random_bytes(6));
+    foreach (['' => 'empty', $missing => 'unresolvable'] as $documentRoot => $label) {
+        assertSame(REFUSED_BODY, runFrontController('GET', '/api/unknown', (string) $documentRoot), $label);
+    }
 };
 
 $failed = 0;

@@ -40,17 +40,33 @@ if ($apiRoot === null) {
     $refuse('private API directory not found');
 }
 
-// Private code, config/local.php and logs/ live next to each other. If they ended up inside
-// the document root (e.g. the whole repository uploaded to the site), refuse to run.
+// The private code ($apiRoot) and its parent (config/local.php, logs/) must both be outside the
+// document root (e.g. not the whole repository uploaded to the site). If the document root
+// cannot be resolved, this cannot be verified, so refuse to run.
 $documentRoot = $_SERVER['DOCUMENT_ROOT'] ?? '';
 $realDocumentRoot = is_string($documentRoot) && $documentRoot !== '' ? @realpath($documentRoot) : false;
-$realPrivateRoot = @realpath(dirname($apiRoot));
-if (
-    $realDocumentRoot !== false
-    && $realPrivateRoot !== false
-    && str_starts_with($realPrivateRoot . DIRECTORY_SEPARATOR, rtrim($realDocumentRoot, '/\\') . DIRECTORY_SEPARATOR)
-) {
-    $refuse('private API directory is inside the document root');
+if ($realDocumentRoot === false) {
+    $refuse('document root is unknown or cannot be resolved');
+}
+
+// Compares whole directory names ("/home/site-private" is not inside "/home/site");
+// Windows paths are case-insensitive.
+$isWithin = static function (string $path, string $root): bool {
+    $normalize = static function (string $value): string {
+        $value = rtrim($value, '/\\') . DIRECTORY_SEPARATOR;
+        return DIRECTORY_SEPARATOR === '\\' ? strtolower($value) : $value;
+    };
+    return str_starts_with($normalize($path), $normalize($root));
+};
+
+foreach ([$apiRoot, dirname($apiRoot)] as $privatePath) {
+    $realPrivatePath = @realpath($privatePath);
+    if ($realPrivatePath === false) {
+        $refuse('private API directory cannot be resolved');
+    }
+    if ($isWithin($realPrivatePath, $realDocumentRoot)) {
+        $refuse('private API directory is inside the document root');
+    }
 }
 
 require $apiRoot . '/src/bootstrap.php';
