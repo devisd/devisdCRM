@@ -4,8 +4,9 @@ name: CI
 
 on:
   pull_request:
+    branches: [main]
   push:
-    branches: [feature/online-migration]
+    branches: [main, feature/online-migration]
   workflow_dispatch:
 
 permissions:
