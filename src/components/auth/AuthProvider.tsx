@@ -11,9 +11,11 @@ import {
 import {
   CHECKING_STATE,
   createAuthStore,
+  startSessionCheck,
   type AuthState,
   type AuthStore,
 } from "@/lib/auth/authStore";
+import { LOCAL_DEV_AUTH_BYPASS } from "@/lib/auth/localDev";
 
 const AuthContext = createContext<AuthStore | null>(null);
 
@@ -21,7 +23,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [store] = useState(() => createAuthStore());
 
   useEffect(() => {
-    void store.checkSession();
+    startSessionCheck(store, LOCAL_DEV_AUTH_BYPASS);
   }, [store]);
 
   return <AuthContext.Provider value={store}>{children}</AuthContext.Provider>;

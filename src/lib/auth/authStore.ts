@@ -126,9 +126,23 @@ export function createAuthStore(options: { fetch?: typeof fetch; baseUrl?: strin
   };
 }
 
+/**
+ * Initial session check. In local development without the API (see localDev.ts) nothing
+ * is requested and the state stays "checking": no session is invented.
+ */
+export function startSessionCheck(store: AuthStore, localDevBypass: boolean): void {
+  if (localDevBypass) {
+    return;
+  }
+  void store.checkSession();
+}
+
 export type GateView = "checking" | "login" | "error" | "app";
 
-/** Which screen the app shows for an auth state; CRM screens only when authenticated. */
+/**
+ * Which screen the app shows for an auth state; CRM screens only when authenticated.
+ * The `next dev` bypass is decided in AuthGate before this (see lib/auth/localDev.ts).
+ */
 export function gateView(state: AuthState): GateView {
   switch (state.status) {
     case "checking":
