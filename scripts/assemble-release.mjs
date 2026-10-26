@@ -2,7 +2,9 @@
 //   www/crm.devisd.online/            static frontend (out/, from `npm run build`)
 //   www/crm.devisd.online/api/        public API entry: index.php, .htaccess
 //   devis-crm/api/src/                private API code
-// Never copied: config/local.php, logs, api/bin, api/tests, api/migrations, tools/.
+//   devis-crm/api/bin/migrate-002-auth.php, devis-crm/api/migrations/{002_auth.sql,checks/002_auth_check.sql}
+//                                     one-time migration runner, started by cron (CLI only)
+// Never copied: config/local.php, logs, other api/bin tools, api/tests, other migrations, tools/.
 // MANIFEST.txt lists every file with its size and SHA-256 to compare after uploading.
 //
 //   node scripts/assemble-release.mjs
@@ -47,6 +49,10 @@ cpSync(out, site, { recursive: true });
 cpSync(join(root, "api", "public", "index.php"), join(site, "api", "index.php"));
 cpSync(join(root, "api", "public", ".htaccess"), join(site, "api", ".htaccess"));
 cpSync(apiSource, join(target, "devis-crm", "api", "src"), { recursive: true });
+for (const file of ["bin/migrate-002-auth.php", "migrations/002_auth.sql", "migrations/checks/002_auth_check.sql"]) {
+  mkdirSync(dirname(join(target, "devis-crm", "api", file)), { recursive: true });
+  cpSync(join(root, "api", file), join(target, "devis-crm", "api", file));
+}
 
 const manifest = files(target)
   .map((file) => {
@@ -55,7 +61,7 @@ const manifest = files(target)
     return `${hash}  ${String(statSync(file).size).padStart(9)}  ${path}`;
   })
   .sort((a, b) => a.slice(77).localeCompare(b.slice(77)));
-if (manifest.some((line) => /local\.php|\.log$|hash-owner-password|\/tests\/|\.sql$/.test(line))) {
+if (manifest.some((line) => /local\.php|\.log$|hash-owner-password|\/tests\//.test(line) || (/\.sql$/.test(line) && !/ {2}devis-crm\/api\/migrations\//.test(line)))) {
   fail("a file that must not be uploaded ended up in the release");
 }
 writeFileSync(join(target, "MANIFEST.txt"), `${manifest.join("\n")}\n`);
