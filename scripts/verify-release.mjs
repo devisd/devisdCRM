@@ -12,6 +12,13 @@ import { join, relative, resolve, sep } from "node:path";
 const target = resolve(process.argv[2] ?? join("release", "reg-ru"));
 const problems = [];
 
+// The one-time migration runner and the files it executes, private and CLI-only.
+const migrationRunner = [
+  "devis-crm/api/bin/migrate-002-auth.php",
+  "devis-crm/api/migrations/002_auth.sql",
+  "devis-crm/api/migrations/checks/002_auth_check.sql",
+];
+
 function files(directory) {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
     const path = join(directory, entry.name);
@@ -55,6 +62,7 @@ for (const path of listed.keys()) {
 }
 
 const required = [
+  ...migrationRunner,
   "www/crm.devisd.online/index.html",
   "www/crm.devisd.online/api/index.php",
   "www/crm.devisd.online/api/.htaccess",
@@ -75,6 +83,9 @@ const forbidden = [
   /(^|\/)(bin|tests|migrations|config|logs|tools|node_modules)\//,
 ];
 for (const path of listed.keys()) {
+  if (migrationRunner.includes(path)) {
+    continue;
+  }
   if (forbidden.some((pattern) => pattern.test(path))) {
     problems.push(`must not be uploaded: ${path}`);
   }

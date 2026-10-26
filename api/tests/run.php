@@ -602,6 +602,98 @@ $tests['migration 002_auth defines the auth tables, keys and indexes'] = static 
     assertTrue(preg_match('/CREATE TABLE `(schema_migrations|clients|orders|order_items|payments|app_meta)`/', $code) === 0, '001_init tables are not recreated');
 };
 
+$tests['read-only check of 002_auth covers every column, index and key of the migration'] = static function (): void {
+    $migration = (string) preg_replace('/^\s*--.*$/m', '', (string) file_get_contents(dirname(__DIR__) . '/migrations/002_auth.sql'));
+    $check = (string) preg_replace('/^\s*--.*$/m', '', (string) file_get_contents(dirname(__DIR__) . '/migrations/checks/002_auth_check.sql'));
+
+    assertSame(1, preg_match_all('/;/', $check), 'a single statement');
+    assertTrue(preg_match('/^\s*SELECT\b/', $check) === 1, 'the statement is a SELECT');
+    $statements = (string) preg_replace("/'[^']*'/", "''", $check);
+    assertTrue(preg_match('/\b(INSERT|UPDATE|DELETE|REPLACE|CREATE|DROP|ALTER|TRUNCATE|GRANT|SET)\b/i', $statements) === 0, 'nothing that writes or changes the session');
+    assertTrue(preg_match('/password_hash`?\s*(FROM|,)|FROM\s+`?(users|sessions|login_attempts)`?/i', $check) === 0, 'reads no rows of the auth tables');
+
+    preg_match_all('/CREATE TABLE `(\w+)` \((.*?)\) ENGINE/s', $migration, $tables, PREG_SET_ORDER);
+    assertSame(3, count($tables), 'three tables in the migration');
+    foreach ($tables as [, $table, $body]) {
+        preg_match_all('/^\s+`(\w+)` [A-Z]/m', $body, $columns);
+        foreach ($columns[1] as $column) {
+            assertTrue(str_contains($check, "'{$table}.{$column}'"), "column {$table}.{$column} is checked");
+        }
+        preg_match_all('/KEY `(\w+)`/', $body, $indexes);
+        foreach ($indexes[1] as $index) {
+            assertTrue(str_contains($check, "'index {$table}.{$index}'"), "index {$table}.{$index} is checked");
+        }
+        assertTrue(str_contains($check, "'index {$table}.PRIMARY'"), "primary key of {$table} is checked");
+    }
+    assertSame(substr_count($migration, 'CHECK ('), (int) (preg_match("/'CHECK constraints on the three tables', '(\\d+)'/", $check, $m) === 1 ? $m[1] : -1), 'number of CHECK constraints');
+    assertTrue(str_contains($check, "'foreign key fk_sessions_user'"), 'foreign key is checked');
+};
+
+function loadMigrationRunner(): void
+{
+    if (!function_exists('DevisCrm\Tools\Migrate002\classify')) {
+        define('DEVIS_MIGRATE_002_NO_MAIN', true);
+        require dirname(__DIR__) . '/bin/migrate-002-auth.php';
+    }
+}
+
+$tests['migration runner pins the reviewed 002_auth files and their statements'] = static function (): void {
+    loadMigrationRunner();
+    $migration = (string) file_get_contents(dirname(__DIR__) . '/migrations/002_auth.sql');
+    $check = (string) file_get_contents(dirname(__DIR__) . '/migrations/checks/002_auth_check.sql');
+    assertSame(\DevisCrm\Tools\Migrate002\MIGRATION_SHA256, \DevisCrm\Tools\Migrate002\normalizedHash($migration), 'pinned hash of 002_auth.sql');
+    assertSame(\DevisCrm\Tools\Migrate002\CHECK_SHA256, \DevisCrm\Tools\Migrate002\normalizedHash($check), 'pinned hash of the check');
+    assertSame(\DevisCrm\Tools\Migrate002\normalizedHash($migration), \DevisCrm\Tools\Migrate002\normalizedHash(str_replace("\n", "\r\n", str_replace("\r\n", "\n", $migration))), 'CRLF and LF copies hash alike');
+
+    $statements = \DevisCrm\Tools\Migrate002\migrationStatements($migration);
+    assertSame('SET NAMES utf8mb4', $statements['set'], 'SET NAMES');
+    assertSame(3, count($statements['creates']), 'three CREATE TABLE');
+    assertTrue(str_starts_with($statements['creates'][2], 'CREATE TABLE `login_attempts`') && str_ends_with($statements['creates'][2], 'COLLATE=utf8mb4_unicode_ci'), 'last CREATE complete');
+    assertSame("INSERT INTO `schema_migrations` (`version`) VALUES ('002_auth')", $statements['record'], 'record statement');
+    foreach (['an extra statement' => $migration . "\nDELETE FROM clients;\n", 'a missing table' => str_replace('CREATE TABLE `sessions`', 'CREATE TABLE `other`', $migration)] as $label => $changed) {
+        try {
+            \DevisCrm\Tools\Migrate002\migrationStatements($changed);
+            throw new AssertionFailed($label . ' accepted');
+        } catch (\DevisCrm\Tools\Migrate002\RunnerError) {
+        }
+    }
+};
+
+$tests['migration runner applies only from a clean state and judges the schema check'] = static function (): void {
+    loadMigrationRunner();
+    assertSame('NOT_APPLIED', \DevisCrm\Tools\Migrate002\classify(true, false, 0), 'clean');
+    assertSame('APPLIED', \DevisCrm\Tools\Migrate002\classify(true, true, 3), 'applied');
+    assertSame('NO_001_INIT', \DevisCrm\Tools\Migrate002\classify(false, false, 0), '001_init missing');
+    foreach ([[true, false, 1], [true, false, 3], [true, true, 2], [true, true, 0]] as [$has001, $has002, $tables]) {
+        assertSame('PARTIAL', \DevisCrm\Tools\Migrate002\classify($has001, $has002, $tables), "partial $tables tables");
+    }
+
+    $rows = [
+        ['check_name' => 'state', 'status' => 'MISMATCH'],
+        ['check_name' => 'migration 002_auth recorded', 'status' => 'MISMATCH'],
+        ['check_name' => 'users.id', 'status' => 'OK'],
+        ['check_name' => 'CHECK constraints on the three tables', 'status' => 'MISMATCH'],
+    ];
+    assertSame(['CHECK constraints on the three tables'], \DevisCrm\Tools\Migrate002\failedChecks($rows, false, '8.0.36'), 'before the record only the schema counts');
+    assertSame([], \DevisCrm\Tools\Migrate002\failedChecks($rows, false, '8.0.15-log'), 'CHECK constraints are not listed before 8.0.16');
+    assertSame(['state', 'migration 002_auth recorded', 'CHECK constraints on the three tables'], \DevisCrm\Tools\Migrate002\failedChecks($rows, true, '8.4.2'), 'after the record every row counts');
+    assertSame(['users.id'], \DevisCrm\Tools\Migrate002\failedChecks([['check_name' => 'users.id', 'status' => 'MISMATCH']], false, '8.0.36'), 'a column mismatch fails');
+};
+
+$tests['migration runner refuses to run over HTTP or with unknown options'] = static function (): void {
+    $runner = dirname(__DIR__) . '/bin/migrate-002-auth.php';
+    $cgi = dirname(PHP_BINARY) . DIRECTORY_SEPARATOR . (PHP_OS_FAMILY === 'Windows' ? 'php-cgi.exe' : 'php-cgi');
+    if (is_file($cgi)) {
+        $result = runCommand([$cgi, '-q', $runner], '');
+        assertSame('', trim($result['stdout']), 'nothing printed over CGI');
+    }
+    $root = sys_get_temp_dir() . '/devis-crm-migrate-' . bin2hex(random_bytes(6));
+    $result = runCommand([PHP_BINARY, $runner, '--force'], '');
+    assertSame(1, $result['exitCode'], 'unknown option refused');
+    assertTrue(str_contains($result['stdout'], 'refused: the only option is --apply'), 'refusal message');
+    assertTrue(!is_dir($root), 'no files created');
+};
+
 $tests['owner password tool refuses to run outside the command line'] = static function (): void {
     $cgi = dirname(PHP_BINARY) . DIRECTORY_SEPARATOR . (PHP_OS_FAMILY === 'Windows' ? 'php-cgi.exe' : 'php-cgi');
     if (!is_file($cgi)) {

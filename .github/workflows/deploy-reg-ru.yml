@@ -178,6 +178,7 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+      # devis-crm/api: src/ plus the CLI-only migration runner (bin/, migrations/); config/ and logs/ are siblings, never touched.
       - name: Upload the private API code and the public API entry
         if: inputs.target != 'frontend'
         env:
@@ -186,7 +187,7 @@ jobs:
           FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
           FTP_PORT: ${{ vars.FTP_PORT }}
         run: |
-          "$RUNNER_TEMP/ftp.sh" "mirror --reverse --no-perms --parallel=4 release/reg-ru/devis-crm/api/src '$REMOTE_ROOT/devis-crm/api/src'; put -O '$REMOTE_ROOT/www/crm.devisd.online/api' release/reg-ru/www/crm.devisd.online/api/index.php release/reg-ru/www/crm.devisd.online/api/.htaccess"
+          "$RUNNER_TEMP/ftp.sh" "mirror --reverse --no-perms --parallel=4 release/reg-ru/devis-crm/api '$REMOTE_ROOT/devis-crm/api'; put -O '$REMOTE_ROOT/www/crm.devisd.online/api' release/reg-ru/www/crm.devisd.online/api/index.php release/reg-ru/www/crm.devisd.online/api/.htaccess"
 
       - name: Upload the frontend
         if: inputs.target != 'api'

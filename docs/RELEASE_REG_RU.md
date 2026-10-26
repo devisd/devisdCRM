@@ -80,6 +80,26 @@ node scripts/assemble-release.mjs
 
 Откат: шаги 3–4 — загрузить предыдущие файлы; шаг 2 — восстановить дамп из шага 1 (только по отдельному решению).
 
+### 3a. Миграция `002_auth` без phpMyAdmin: runner через планировщик ISPmanager
+
+Вместо шага 2.2 (импорт в phpMyAdmin). Деплой `target=api` загружает вместе с кодом API приватные файлы
+`devis-crm/api/bin/migrate-002-auth.php`, `devis-crm/api/migrations/002_auth.sql`, `devis-crm/api/migrations/checks/002_auth_check.sql`.
+Runner работает только из командной строки (по HTTP недоступен: каталог вне сайта, при CGI — 404), читает
+`devis-crm/config/local.php` и не меняет его, пишет только состояния и коды SQLSTATE в вывод и в `devis-crm/logs/migrate-002-auth.log`.
+
+1. **[подтверждение]** Дамп БД (шаг 1) и деплой `target=api`. До применения миграции `/api/health` работает, а вход — ещё нет
+   (старый фронтенд API не использует).
+2. **[подтверждение]** ISPmanager → Планировщик (CRON) → Создать, одноразовый запуск **проверки**:
+   `/opt/php/8.3/bin/php -f /var/www/<логин>/data/devis-crm/api/bin/migrate-002-auth.php`
+   (`/opt/php/8.3/bin/php` проверен через cron: `PHP 8.3.36 (cli)`; `<логин>` — логин хостинга, как в пути корня сайта в ISPmanager).
+   Ожидается в `devis-crm/logs/migrate-002-auth.log`: `state=NOT_APPLIED`, `check query runs on this server`, `002_auth can be applied`.
+3. **[подтверждение]** Та же задача с ` --apply` в конце команды. Ожидается: `created table users/sessions/login_attempts`,
+   `result: 002_auth applied and verified`. Повторный запуск выводит `nothing to do` и ничего не меняет.
+4. Удалить задачу из планировщика.
+
+Runner отказывается, если `001_init` не записана, если состояние частичное (`PARTIAL`), если файлы миграции отличаются от проверенных,
+или если уже идёт другой запуск. При ошибке после создания таблиц `002_auth` не записывается — повторно не запускать, прислать лог.
+
 ## 4. Готовность к импорту резервной копии
 
 Условия: шаги 1–8 выполнены, вход работает. Импорт — отдельное действие.

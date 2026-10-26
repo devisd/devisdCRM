@@ -9,7 +9,8 @@
 |---|---|
 | Тесты PHP API (PHP 8.3 + pdo_sqlite), frontend-тесты, typecheck, lint, сборка, комплект `release/reg-ru` | автоматически, workflow **CI** |
 | Загрузка файлов на хостинг | вручную запускаемый workflow **Deploy to REG.RU** |
-| SQL-миграции, создание владельца, `local.php`, права, лимиты PHP/nginx | только вручную (ISPmanager / phpMyAdmin) |
+| Миграция `002_auth` | runner `devis-crm/api/bin/migrate-002-auth.php` (загружается деплоем `api`), запуск — задачей планировщика ISPmanager (RELEASE_REG_RU.md, 3a) или импортом в phpMyAdmin |
+| Создание владельца, `local.php`, права, лимиты PHP/nginx | только вручную (ISPmanager / phpMyAdmin) |
 | Импорт резервной копии | вручную, отдельно (RELEASE_REG_RU.md, раздел 4) |
 
 ## CI — `.github/workflows/ci.yml`
