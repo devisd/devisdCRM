@@ -1,0 +1,228 @@
+# Manual deploy of a release set built by CI (artifact "reg-ru-release") to REG.RU over FTPS (FTP).
+# No SSH and no SQL: database migrations stay manual (docs/RELEASE_REG_RU.md).
+# Remote paths are fixed below; config/ and logs/ are never written; nothing is deleted.
+# Each file is uploaded under a temporary name and renamed, so a file is replaced whole,
+# but a release is not switched atomically: for a short time old and new files coexist.
+name: Deploy to REG.RU
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "What to upload: api (private code + public entry), frontend, or all"
+        type: choice
+        options: [api, frontend, all]
+        default: api
+      ci_run_id:
+        description: "ID of a successful CI run (empty: latest successful push run of CI on this branch)"
+        type: string
+        required: false
+        default: ""
+      confirm:
+        description: "Type crm.devisd.online to confirm the production deploy"
+        type: string
+        required: true
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: deploy-reg-ru
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy ${{ inputs.target }}
+    runs-on: ubuntu-24.04
+    environment: production
+    timeout-minutes: 30
+    env:
+      SITE_URL: https://crm.devisd.online
+      TARGET: ${{ inputs.target }}
+      REMOTE_ROOT: ${{ vars.FTP_REMOTE_ROOT }}
+    steps:
+      - name: Check the confirmation
+        env:
+          CONFIRM: ${{ inputs.confirm }}
+        run: |
+          if [ "$CONFIRM" != "crm.devisd.online" ]; then
+            echo "::error::The confirmation text does not match; nothing was deployed."
+            exit 1
+          fi
+
+      - name: Check the FTP settings
+        env:
+          FTP_HOST: ${{ secrets.FTP_HOST }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          FTP_PROTOCOL: ${{ vars.FTP_PROTOCOL }}
+        run: |
+          missing=""
+          for name in FTP_HOST FTP_USERNAME FTP_PASSWORD; do
+            [ -n "${!name}" ] || missing="$missing $name"
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::Secrets of the production environment are not set:$missing"
+            exit 1
+          fi
+          case "${FTP_PROTOCOL:-ftps}" in
+            ftps | ftp) ;;
+            *) echo "::error::Variable FTP_PROTOCOL must be ftps or ftp"; exit 1 ;;
+          esac
+
+      - uses: actions/checkout@v4
+
+      - name: Select the CI run to deploy
+        id: ci
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ inputs.ci_run_id }}
+        run: |
+          if [ -z "$RUN_ID" ]; then
+            RUN_ID=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow ci.yml --branch "$GITHUB_REF_NAME" \
+              --event push --status success --limit 1 --json databaseId --jq '.[0].databaseId // empty')
+          fi
+          if ! [[ "$RUN_ID" =~ ^[0-9]+$ ]]; then
+            echo "::error::No successful CI run found for $GITHUB_REF_NAME"
+            exit 1
+          fi
+          info=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID" \
+            --jq '[.conclusion, .path, .event, .head_repository.full_name, .head_branch, .head_sha] | @tsv')
+          IFS=$'\t' read -r conclusion path event repo branch sha <<< "$info"
+          if [ "$conclusion" != "success" ] || [[ "$path" != .github/workflows/ci.yml* ]] || [ "$repo" != "$GITHUB_REPOSITORY" ]; then
+            echo "::error::Run $RUN_ID is not a successful CI run of this repository"
+            exit 1
+          fi
+          case "$event" in
+            push | workflow_dispatch) ;;
+            *) echo "::error::Run $RUN_ID was triggered by $event; deploy only builds of pushed commits"; exit 1 ;;
+          esac
+          echo "run_id=$RUN_ID" >> "$GITHUB_OUTPUT"
+          {
+            echo "### Deploy to REG.RU: $TARGET"
+            echo "CI run $RUN_ID, branch $branch, commit $sha"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Download artifact reg-ru-release
+        uses: actions/download-artifact@v4
+        with:
+          name: reg-ru-release
+          path: release/reg-ru
+          run-id: ${{ steps.ci.outputs.run_id }}
+          github-token: ${{ github.token }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Verify the release set
+        run: node scripts/verify-release.mjs release/reg-ru
+
+      - name: Install lftp
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq lftp
+
+      - name: Prepare the FTP client
+        env:
+          FTP_PROTOCOL: ${{ vars.FTP_PROTOCOL }}
+        run: |
+          settings="$RUNNER_TEMP/lftp-settings"
+          {
+            echo "set cmd:fail-exit yes"
+            echo "set net:max-retries 3"
+            echo "set net:reconnect-interval-base 5"
+            echo "set net:timeout 30"
+            echo "set ftp:passive-mode yes"
+            echo "set ftp:list-options -a"
+            echo "set xfer:use-temp-file yes"
+            echo "set xfer:clobber yes"
+            if [ "${FTP_PROTOCOL:-ftps}" = "ftps" ]; then
+              echo "set ftp:ssl-force yes"
+              echo "set ftp:ssl-protect-data yes"
+              echo "set ssl:verify-certificate yes"
+            else
+              echo "set ftp:ssl-allow no"
+            fi
+          } > "$settings"
+          # The password reaches lftp only through LFTP_PASSWORD (--env-password), never the command line.
+          cat > "$RUNNER_TEMP/ftp.sh" <<'SCRIPT'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          export LFTP_PASSWORD="$FTP_PASSWORD"
+          exec lftp -u "$FTP_USERNAME" --env-password -p "${FTP_PORT:-21}" "ftp://$FTP_HOST" \
+            -e "source $RUNNER_TEMP/lftp-settings; $1; bye"
+          SCRIPT
+          chmod +x "$RUNNER_TEMP/ftp.sh"
+
+      - name: Back up the remote files that will be replaced
+        env:
+          FTP_HOST: ${{ secrets.FTP_HOST }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          FTP_PORT: ${{ vars.FTP_PORT }}
+        run: |
+          mkdir -p backup
+          if [ "$TARGET" != "frontend" ]; then
+            "$RUNNER_TEMP/ftp.sh" "mirror --no-perms --parallel=4 '$REMOTE_ROOT/devis-crm/api/src' backup/devis-crm/api/src; mirror --no-perms '$REMOTE_ROOT/www/crm.devisd.online/api' backup/www/crm.devisd.online/api"
+          fi
+          if [ "$TARGET" != "api" ]; then
+            "$RUNNER_TEMP/ftp.sh" "mirror --no-perms --parallel=4 --exclude-glob api/ '$REMOTE_ROOT/www/crm.devisd.online' backup/www/crm.devisd.online"
+          fi
+
+      - name: Upload artifact reg-ru-backup (files before this deploy)
+        uses: actions/upload-artifact@v4
+        with:
+          name: reg-ru-backup-${{ github.run_id }}
+          path: backup/
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload the private API code and the public API entry
+        if: inputs.target != 'frontend'
+        env:
+          FTP_HOST: ${{ secrets.FTP_HOST }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          FTP_PORT: ${{ vars.FTP_PORT }}
+        run: |
+          "$RUNNER_TEMP/ftp.sh" "mirror --reverse --no-perms --parallel=4 release/reg-ru/devis-crm/api/src '$REMOTE_ROOT/devis-crm/api/src'; put -O '$REMOTE_ROOT/www/crm.devisd.online/api' release/reg-ru/www/crm.devisd.online/api/index.php release/reg-ru/www/crm.devisd.online/api/.htaccess"
+
+      - name: Upload the frontend
+        if: inputs.target != 'api'
+        env:
+          FTP_HOST: ${{ secrets.FTP_HOST }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          FTP_PORT: ${{ vars.FTP_PORT }}
+        run: |
+          "$RUNNER_TEMP/ftp.sh" "mirror --reverse --no-perms --parallel=4 --exclude-glob api/ release/reg-ru/www/crm.devisd.online '$REMOTE_ROOT/www/crm.devisd.online'"
+
+      - name: Check the site after the deploy
+        run: |
+          failed=0
+          if [ "$TARGET" != "frontend" ]; then
+            code=$(curl -sS -o "$RUNNER_TEMP/health.json" -w '%{http_code}' "$SITE_URL/api/health" || true)
+            if [ "$code" = "200" ] && grep -q '"db":true' "$RUNNER_TEMP/health.json"; then
+              echo "- /api/health: 200, database reachable" >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "::error::/api/health answered $code"; failed=1
+            fi
+            # 401 (not 404) shows that the deployed code has the authentication routes.
+            code=$(curl -sS -o /dev/null -w '%{http_code}' "$SITE_URL/api/auth/me" || true)
+            if [ "$code" = "401" ]; then
+              echo "- /api/auth/me without a session: 401" >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "::error::/api/auth/me answered $code instead of 401"; failed=1
+            fi
+          fi
+          if [ "$TARGET" != "api" ]; then
+            expected=$(awk '$3 == "www/crm.devisd.online/index.html" { print $1 }' release/reg-ru/MANIFEST.txt)
+            actual=$(curl -sS "$SITE_URL/" | sha256sum | cut -d' ' -f1 || true)
+            if [ "$expected" = "$actual" ]; then
+              echo "- / serves the deployed index.html" >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "::error::/ does not serve the deployed index.html (upload or cache problem)"; failed=1
+            fi
+          fi
+          exit "$failed"

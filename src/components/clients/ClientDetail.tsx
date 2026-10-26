@@ -24,6 +24,7 @@ import { formatDateLocal } from "@/lib/format/dates";
 import { ORDER_STATUS_LABELS } from "@/lib/services/labels";
 import { calcPaymentStatus, PAYMENT_STATUS_LABELS } from "@/lib/services/paymentStatus";
 import { calcRemainingMinor, isOrderCountableForRevenue } from "@/lib/services/money";
+import { routes } from "@/lib/routes";
 import type { Client } from "@/types";
 import styles from "./ClientDetail.module.scss";
 
@@ -112,7 +113,7 @@ export function ClientDetail({ clientId }: ClientDetailProps) {
       <EmptyState
         title="Клиент не найден"
         description="Возможно, запись была удалена или идентификатор указан неверно."
-        action={<LinkButton href="/clients">К списку клиентов</LinkButton>}
+        action={<LinkButton href={routes.clients}>К списку клиентов</LinkButton>}
       />
     );
   }
@@ -140,10 +141,10 @@ export function ClientDetail({ clientId }: ClientDetailProps) {
         description="Карточка клиента и история заказов."
         actions={
           <>
-            <LinkButton href={`/clients/${client.id}/edit`} variant="secondary">
+            <LinkButton href={routes.clientEdit(client.id)} variant="secondary">
               Редактировать
             </LinkButton>
-            <LinkButton href={`/orders/new?clientId=${client.id}`}>
+            <LinkButton href={routes.orderNew(client.id)}>
               Создать заказ
             </LinkButton>
             <Button
@@ -153,7 +154,7 @@ export function ClientDetail({ clientId }: ClientDetailProps) {
             >
               {client.isArchived ? "Вернуть из архива" : "В архив"}
             </Button>
-            <LinkButton href="/clients" variant="ghost">
+            <LinkButton href={routes.clients} variant="ghost">
               К списку
             </LinkButton>
           </>
@@ -223,7 +224,7 @@ export function ClientDetail({ clientId }: ClientDetailProps) {
           <h2 id="client-orders-heading" className={styles.panelTitle}>
             История заказов
           </h2>
-          <LinkButton href={`/orders/new?clientId=${client.id}`} size="sm">
+          <LinkButton href={routes.orderNew(client.id)} size="sm">
             Новый заказ
           </LinkButton>
         </div>
@@ -233,7 +234,7 @@ export function ClientDetail({ clientId }: ClientDetailProps) {
             title="Заказов пока нет"
             description="Создайте первый заказ для этого клиента."
             action={
-              <LinkButton href={`/orders/new?clientId=${client.id}`}>
+              <LinkButton href={routes.orderNew(client.id)}>
                 Создать заказ
               </LinkButton>
             }
@@ -253,7 +254,7 @@ export function ClientDetail({ clientId }: ClientDetailProps) {
               return (
                 <li key={order.id} className={styles.orderItem}>
                   <div className={styles.orderTop}>
-                    <Link href={`/orders/${order.id}`} className={styles.orderTitle}>
+                    <Link href={routes.orderDetail(order.id)} className={styles.orderTitle}>
                       №{order.number} · {order.title}
                     </Link>
                     <div className={styles.orderBadges}>

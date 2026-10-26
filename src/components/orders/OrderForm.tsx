@@ -30,6 +30,7 @@ import {
   type OrderFormValues,
   type OrderItemFormValues,
 } from "@/lib/validation/orderForm";
+import { routes } from "@/lib/routes";
 import type { Client, Order, OrderItem } from "@/types";
 import styles from "./OrderForm.module.scss";
 
@@ -213,7 +214,7 @@ export function OrderForm({
       if (mode === "create") {
         const created = await createOrder(payload);
         setIsDirty(false);
-        router.push(`/orders/${created.order.id}`);
+        router.push(routes.orderDetail(created.order.id));
         return;
       }
 
@@ -226,7 +227,7 @@ export function OrderForm({
         completedAt: clearCompletedAt ? null : payload.completedAt,
       });
       setIsDirty(false);
-      router.push(`/orders/${updated.order.id}`);
+      router.push(routes.orderDetail(updated.order.id));
     } catch (error) {
       setFormError(toUserDbMessage(error));
     } finally {
@@ -238,14 +239,14 @@ export function OrderForm({
     return (
       <Alert tone="error" title="Нет клиентов">
         Сначала создайте клиента, затем оформляйте заказ.{" "}
-        <LinkButton href="/clients/new" size="sm">
+        <LinkButton href={routes.clientNew} size="sm">
           Добавить клиента
         </LinkButton>
       </Alert>
     );
   }
 
-  const cancelHref = order ? `/orders/${order.id}` : "/orders";
+  const cancelHref = order ? routes.orderDetail(order.id) : routes.orders;
 
   return (
     <form className={styles.form} onSubmit={onSubmit} noValidate>

@@ -33,6 +33,16 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 
+# PHP API: real configuration and runtime logs (never commit secrets)
+/config/local.php
+/logs/
+
+# Upload set built by scripts/assemble-release.mjs
+/release/
+
+# Temporary hosting diagnostic (stage 3.8): commit only with explicit agreement (git add -f)
+/tools/hosting-diagnostic.php
+
 # vercel
 .vercel
 

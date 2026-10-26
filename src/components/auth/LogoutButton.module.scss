@@ -1,0 +1,25 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+}
+
+.user {
+  margin: 0;
+  padding: 0 var(--space-3);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+}
+
+.login {
+  color: var(--color-text-secondary);
+  font-weight: var(--font-weight-medium);
+}
+
+.error {
+  margin: 0;
+  max-width: 220px;
+  font-size: var(--font-size-xs);
+  color: var(--color-danger);
+}

@@ -21,19 +21,19 @@ export const NAV_ITEMS: NavItem[] = [
     match: "exact",
   },
   {
-    href: "/orders",
+    href: "/orders/",
     label: "Заказы",
     icon: ClipboardList,
     match: "prefix",
   },
   {
-    href: "/clients",
+    href: "/clients/",
     label: "Клиенты",
     icon: Users,
     match: "prefix",
   },
   {
-    href: "/settings",
+    href: "/settings/",
     label: "Настройки",
     icon: Settings,
     match: "prefix",
@@ -44,5 +44,6 @@ export function isNavItemActive(pathname: string, item: NavItem): boolean {
   if (item.match === "exact") {
     return pathname === item.href;
   }
-  return pathname === item.href || pathname.startsWith(`${item.href}/`);
+  // TrailingSlash: pathname is `/clients/` or `/clients/detail/`
+  return pathname === item.href || pathname.startsWith(item.href);
 }

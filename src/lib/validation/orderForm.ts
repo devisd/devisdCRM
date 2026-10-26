@@ -1,8 +1,17 @@
 import { z } from "zod";
 import { parseRubToMinor } from "@/lib/format/currency";
 import { dateInputToIso } from "@/lib/format/dates";
-import { orderStatusSchema } from "@/lib/validation/schemas";
+import {
+  maxLengthMessage,
+  orderStatusSchema,
+  TEXT_LIMITS,
+} from "@/lib/validation/schemas";
 import { calcLineTotalMinor, calcOrderTotalMinor } from "@/lib/services/money";
+
+const longText = z
+  .string()
+  .trim()
+  .max(TEXT_LIMITS.long, maxLengthMessage(TEXT_LIMITS.long));
 
 const pieceUnits = new Set(["шт.", "шт", "штука", "штуки"]);
 
@@ -19,10 +28,18 @@ export const orderItemFormSchema = z
   .object({
     key: z.string().min(1),
     id: z.string().uuid().optional(),
-    name: z.string().trim().min(1, "Укажите название позиции"),
-    description: z.string().trim(),
+    name: z
+      .string()
+      .trim()
+      .min(1, "Укажите название позиции")
+      .max(TEXT_LIMITS.short, maxLengthMessage(TEXT_LIMITS.short)),
+    description: longText,
     quantity: z.string().trim().min(1, "Укажите количество"),
-    unit: z.string().trim().min(1, "Укажите единицу"),
+    unit: z
+      .string()
+      .trim()
+      .min(1, "Укажите единицу")
+      .max(TEXT_LIMITS.unit, maxLengthMessage(TEXT_LIMITS.unit)),
     unitPrice: z.string().trim().min(1, "Укажите цену"),
   })
   .superRefine((item, ctx) => {
@@ -56,13 +73,17 @@ export const orderItemFormSchema = z
 export const orderFormSchema = z
   .object({
     clientId: z.string().uuid("Выберите клиента"),
-    title: z.string().trim().min(1, "Укажите название заказа"),
-    description: z.string().trim(),
+    title: z
+      .string()
+      .trim()
+      .min(1, "Укажите название заказа")
+      .max(TEXT_LIMITS.short, maxLengthMessage(TEXT_LIMITS.short)),
+    description: longText,
     status: orderStatusSchema,
     orderDate: z.string().min(1, "Укажите дату заказа"),
     dueDate: z.string().trim(),
     discount: z.string().trim(),
-    notes: z.string().trim(),
+    notes: longText,
     items: z.array(orderItemFormSchema).min(1, "Добавьте хотя бы одну позицию"),
   })
   .superRefine((form, ctx) => {

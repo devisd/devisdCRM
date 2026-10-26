@@ -23,6 +23,7 @@ import {
   type ClientSortKey,
   type ClientSummary,
 } from "@/lib/services/clientSummaries";
+import { routes } from "@/lib/routes";
 import styles from "./ClientsList.module.scss";
 
 type ArchiveFilter = "active" | "archived" | "all";
@@ -86,7 +87,7 @@ export function ClientsList() {
       <PageHeader
         title="Клиенты"
         description="Поиск по имени и контактам, фильтр архива и сортировка."
-        actions={<LinkButton href="/clients/new">Добавить клиента</LinkButton>}
+        actions={<LinkButton href={routes.clientNew}>Добавить клиента</LinkButton>}
       />
 
       {hasAny ? (
@@ -146,7 +147,7 @@ export function ClientsList() {
         <EmptyState
           title="Клиентов пока нет"
           description="Добавьте клиента, чтобы вести историю заказов и оплат."
-          action={<LinkButton href="/clients/new">Добавить клиента</LinkButton>}
+          action={<LinkButton href={routes.clientNew}>Добавить клиента</LinkButton>}
         />
       ) : !hasFiltered ? (
         <EmptyState
@@ -183,7 +184,7 @@ export function ClientsList() {
                   <tr key={client.id}>
                     <td>
                       <div className={styles.nameCell}>
-                        <Link href={`/clients/${client.id}`} className={styles.nameLink}>
+                        <Link href={routes.clientDetail(client.id)} className={styles.nameLink}>
                           {client.name}
                         </Link>
                         {client.isArchived ? (
@@ -205,7 +206,7 @@ export function ClientsList() {
             {filtered.map(({ client, orderCount, lastOrderDate, paidMinor }) => (
               <li key={client.id} className={styles.card}>
                 <div className={styles.cardHeader}>
-                  <Link href={`/clients/${client.id}`} className={styles.nameLink}>
+                  <Link href={routes.clientDetail(client.id)} className={styles.nameLink}>
                     {client.name}
                   </Link>
                   {client.isArchived ? <Badge tone="cancelled">В архиве</Badge> : null}

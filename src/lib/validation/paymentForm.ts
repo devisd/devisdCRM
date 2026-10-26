@@ -1,14 +1,21 @@
 import { z } from "zod";
 import { parseRubToMinor } from "@/lib/format/currency";
 import { dateInputToIso } from "@/lib/format/dates";
-import { paymentMethodSchema } from "@/lib/validation/schemas";
+import {
+  maxLengthMessage,
+  paymentMethodSchema,
+  TEXT_LIMITS,
+} from "@/lib/validation/schemas";
 import { assertPaymentWithinRemaining } from "@/lib/services/money";
 
 export const paymentFormSchema = z.object({
   amount: z.string().trim().min(1, "Укажите сумму"),
   paymentDate: z.string().min(1, "Укажите дату оплаты"),
   method: paymentMethodSchema,
-  comment: z.string().trim(),
+  comment: z
+    .string()
+    .trim()
+    .max(TEXT_LIMITS.long, maxLengthMessage(TEXT_LIMITS.long)),
 });
 
 export type PaymentFormValues = z.infer<typeof paymentFormSchema>;

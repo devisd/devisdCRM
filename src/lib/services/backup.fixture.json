@@ -1,0 +1,122 @@
+{
+  "app": "Devis Studio Work Tracker",
+  "backupVersion": 1,
+  "exportedAt": "2026-10-26T08:00:00.000Z",
+  "data": {
+    "clients": [
+      {
+        "id": "a1a1a1a1-0000-4000-8000-000000000001",
+        "name": "Студия Ромашка",
+        "contactName": "Анна",
+        "phone": "+7 900 000-00-00",
+        "email": "anna@example.com",
+        "tags": ["vip", "опт"],
+        "isArchived": false,
+        "createdAt": "2026-01-10T09:00:00.000Z",
+        "updatedAt": "2026-02-01T10:30:00.000Z"
+      },
+      {
+        "id": "a1a1a1a1-0000-4000-8000-000000000002",
+        "name": "Архивный клиент",
+        "notes": "Заметка",
+        "isArchived": true,
+        "createdAt": "2026-01-11T09:00:00.000Z",
+        "updatedAt": "2026-03-05T12:00:00.000Z"
+      }
+    ],
+    "orders": [
+      {
+        "id": "b2b2b2b2-0000-4000-8000-000000000003",
+        "number": 3,
+        "clientId": "a1a1a1a1-0000-4000-8000-000000000001",
+        "title": "Сайт",
+        "description": "Лендинг",
+        "status": "completed",
+        "orderDate": "2026-02-01T09:00:00.000Z",
+        "dueDate": "2026-02-10T09:00:00.000Z",
+        "completedAt": "2026-02-12T15:00:00.000Z",
+        "discountMinor": 499,
+        "totalMinor": 10000,
+        "paidMinor": 10000,
+        "isArchived": true,
+        "createdAt": "2026-02-01T09:10:00.000Z",
+        "updatedAt": "2026-02-12T15:05:00.000Z"
+      },
+      {
+        "id": "b2b2b2b2-0000-4000-8000-000000000007",
+        "number": 7,
+        "clientId": "a1a1a1a1-0000-4000-8000-000000000002",
+        "title": "Консультация",
+        "status": "in_progress",
+        "orderDate": "2026-03-01T09:00:00.000Z",
+        "discountMinor": 0,
+        "totalMinor": 25000,
+        "paidMinor": 5000,
+        "notes": "Ежемесячно",
+        "isArchived": false,
+        "createdAt": "2026-03-01T09:10:00.000Z",
+        "updatedAt": "2026-03-02T10:00:00.000Z"
+      }
+    ],
+    "orderItems": [
+      {
+        "id": "c3c3c3c3-0000-4000-8000-000000000001",
+        "orderId": "b2b2b2b2-0000-4000-8000-000000000003",
+        "name": "Дизайн",
+        "quantity": 3,
+        "unit": "шт.",
+        "unitPriceMinor": 3333,
+        "lineTotalMinor": 9999,
+        "sortOrder": 0
+      },
+      {
+        "id": "c3c3c3c3-0000-4000-8000-000000000002",
+        "orderId": "b2b2b2b2-0000-4000-8000-000000000003",
+        "name": "Вёрстка",
+        "description": "Адаптив",
+        "quantity": 1.5,
+        "unit": "ч",
+        "unitPriceMinor": 333,
+        "lineTotalMinor": 500,
+        "sortOrder": 1
+      },
+      {
+        "id": "c3c3c3c3-0000-4000-8000-000000000003",
+        "orderId": "b2b2b2b2-0000-4000-8000-000000000007",
+        "name": "Консультация",
+        "quantity": 0.25,
+        "unit": "мес.",
+        "unitPriceMinor": 100000,
+        "lineTotalMinor": 25000,
+        "sortOrder": 0
+      }
+    ],
+    "payments": [
+      {
+        "id": "d4d4d4d4-0000-4000-8000-000000000001",
+        "orderId": "b2b2b2b2-0000-4000-8000-000000000003",
+        "amountMinor": 6000,
+        "paymentDate": "2026-02-05T09:00:00.000Z",
+        "method": "cash",
+        "createdAt": "2026-02-05T09:05:00.000Z"
+      },
+      {
+        "id": "d4d4d4d4-0000-4000-8000-000000000002",
+        "orderId": "b2b2b2b2-0000-4000-8000-000000000003",
+        "amountMinor": 4000,
+        "paymentDate": "2026-02-12T15:00:00.000Z",
+        "method": "bank_transfer",
+        "comment": "Остаток",
+        "createdAt": "2026-02-12T15:05:00.000Z"
+      },
+      {
+        "id": "d4d4d4d4-0000-4000-8000-000000000003",
+        "orderId": "b2b2b2b2-0000-4000-8000-000000000007",
+        "amountMinor": 5000,
+        "paymentDate": "2026-02-12T15:00:00.000Z",
+        "method": "other",
+        "createdAt": "2026-03-02T10:00:00.000Z"
+      }
+    ]
+  }
+}

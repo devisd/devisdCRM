@@ -1,5 +1,25 @@
 import { describe, expect, it } from "vitest";
 import { validatePaymentForm } from "./paymentForm";
+import { maxLengthMessage, TEXT_LIMITS } from "./schemas";
+
+describe("payment comment limit", () => {
+  const withComment = (comment: string) =>
+    validatePaymentForm(
+      { amount: "100", paymentDate: "2026-10-23", method: "cash", comment },
+      100000,
+    );
+
+  it("accepts 20 000 characters", () => {
+    expect(withComment("ж".repeat(TEXT_LIMITS.long)).ok).toBe(true);
+  });
+
+  it("rejects 20 001 characters with a Russian message on the comment field", () => {
+    const result = withComment("ж".repeat(TEXT_LIMITS.long + 1));
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.errors.comment).toBe(maxLengthMessage(TEXT_LIMITS.long));
+  });
+});
 
 describe("validatePaymentForm", () => {
   it("accepts a partial payment within remaining", () => {

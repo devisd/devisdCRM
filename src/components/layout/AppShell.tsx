@@ -1,4 +1,5 @@
 import { Suspense, type ReactNode } from "react";
+import { LogoutButton } from "@/components/auth/LogoutButton";
 import { SidebarNav } from "./SidebarNav";
 import styles from "./AppShell.module.scss";
 
@@ -36,6 +37,9 @@ export function AppShell({ children }: AppShellProps) {
         <Suspense fallback={<NavFallback />}>
           <SidebarNav />
         </Suspense>
+        <div className={styles.sidebarFooter}>
+          <LogoutButton />
+        </div>
       </aside>
 
       <div className={styles.mainColumn}>
@@ -46,6 +50,7 @@ export function AppShell({ children }: AppShellProps) {
             </span>
             <span className={styles.brandName}>Devis Studio</span>
           </div>
+          <LogoutButton showUser={false} />
         </header>
 
         <div className={styles.mobileNav}>

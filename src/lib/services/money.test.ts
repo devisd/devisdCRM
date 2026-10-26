@@ -11,6 +11,47 @@ import {
 } from "./money";
 import { calcPaymentStatus } from "./paymentStatus";
 import { calcRevenueFromPayments } from "./stats";
+import cases from "./money.cases.json";
+
+const toItems = (pairs: number[][]) =>
+  pairs.map(([quantity, unitPriceMinor]) => ({ quantity, unitPriceMinor, lineTotalMinor: 0 }));
+
+// The same file is checked against api/src/Orders/Money.php by api/tests/run.php.
+describe("money cases shared with the API", () => {
+  it.each(cases.lineTotals)(
+    "$quantity × $unitPriceMinor = $expected",
+    ({ quantity, unitPriceMinor, expected }) => {
+      expect(calcLineTotalMinor(quantity, unitPriceMinor)).toBe(expected);
+    },
+  );
+
+  it.each(cases.lineTotalErrors)("$quantity × $unitPriceMinor is rejected", ({ quantity, unitPriceMinor }) => {
+    expect(() => calcLineTotalMinor(quantity, unitPriceMinor)).toThrow(MoneyError);
+  });
+
+  it.each(cases.orderTotals)("order totals with discount $discountMinor", ({ items, discountMinor, expected }) => {
+    const result = recalculateOrderMoney({ items: toItems(items), discountMinor, payments: [] });
+    expect({
+      lineTotals: result.lineTotalsMinor,
+      subtotal: result.itemsSubtotalMinor,
+      total: result.totalMinor,
+    }).toEqual(expected);
+  });
+
+  it.each(cases.orderTotalErrors)("order totals with discount $discountMinor are rejected", ({ items, discountMinor }) => {
+    expect(() => recalculateOrderMoney({ items: toItems(items), discountMinor, payments: [] })).toThrow(MoneyError);
+  });
+
+  it.each([
+    [Number.NaN, 100],
+    [Number.POSITIVE_INFINITY, 100],
+    [1, Number.NaN],
+    [1, Number.POSITIVE_INFINITY],
+    [1, 1.5],
+  ])("rejects %s × %s", (quantity, unitPriceMinor) => {
+    expect(() => calcLineTotalMinor(quantity, unitPriceMinor)).toThrow(MoneyError);
+  });
+});
 
 describe("calcLineTotalMinor", () => {
   it("multiplies quantity by unit price in kopecks", () => {

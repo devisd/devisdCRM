@@ -25,6 +25,7 @@ import {
   type OrderListFilters,
   type OrderSortKey,
 } from "@/lib/services/orderList";
+import { routes } from "@/lib/routes";
 import {
   orderStatusTone,
   paymentStatusTone,
@@ -87,7 +88,7 @@ export function OrdersList() {
       <PageHeader
         title="Заказы"
         description="Поиск, фильтры по статусу и оплате, сортировка."
-        actions={<LinkButton href="/orders/new">Новый заказ</LinkButton>}
+        actions={<LinkButton href={routes.orderNew()}>Новый заказ</LinkButton>}
       />
 
       {hasAny ? (
@@ -217,7 +218,7 @@ export function OrdersList() {
         <EmptyState
           title="Заказов пока нет"
           description="Создайте заказ с позициями работ, сроками и статусом."
-          action={<LinkButton href="/orders/new">Создать заказ</LinkButton>}
+          action={<LinkButton href={routes.orderNew()}>Создать заказ</LinkButton>}
         />
       ) : !hasFiltered ? (
         <EmptyState
@@ -255,7 +256,7 @@ export function OrdersList() {
                   <tr key={order.id}>
                     <td>{order.number}</td>
                     <td>
-                      <Link href={`/orders/${order.id}`} className={styles.nameLink}>
+                      <Link href={routes.orderDetail(order.id)} className={styles.nameLink}>
                         {order.title}
                       </Link>
                       {order.isArchived ? (
@@ -263,7 +264,7 @@ export function OrdersList() {
                       ) : null}
                     </td>
                     <td>
-                      <Link href={`/clients/${order.clientId}`}>{clientName}</Link>
+                      <Link href={routes.clientDetail(order.clientId)}>{clientName}</Link>
                     </td>
                     <td>{formatDateLocal(order.orderDate)}</td>
                     <td>{order.dueDate ? formatDateLocal(order.dueDate) : "—"}</td>
@@ -290,13 +291,13 @@ export function OrdersList() {
             {filtered.map(({ order, clientName, paymentStatus, remainingMinor }) => (
               <li key={order.id} className={styles.card}>
                 <div className={styles.cardHeader}>
-                  <Link href={`/orders/${order.id}`} className={styles.nameLink}>
+                  <Link href={routes.orderDetail(order.id)} className={styles.nameLink}>
                     №{order.number} · {order.title}
                   </Link>
                   {order.isArchived ? <Badge tone="cancelled">Архив</Badge> : null}
                 </div>
                 <p className={styles.cardMeta}>
-                  <Link href={`/clients/${order.clientId}`}>{clientName}</Link>
+                  <Link href={routes.clientDetail(order.clientId)}>{clientName}</Link>
                   {" · "}
                   {formatDateLocal(order.orderDate)}
                   {order.dueDate ? ` · срок ${formatDateLocal(order.dueDate)}` : ""}

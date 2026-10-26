@@ -19,6 +19,7 @@ import {
   orderStatusTone,
   paymentStatusTone,
 } from "@/lib/services/orderStatusTone";
+import { routes } from "@/lib/routes";
 import styles from "./OverviewDashboard.module.scss";
 
 export function OverviewDashboard() {
@@ -59,8 +60,8 @@ export function OverviewDashboard() {
         description="Сводка по активным заказам и фактически полученным оплатам."
         actions={
           <>
-            <LinkButton href="/orders/new">Новый заказ</LinkButton>
-            <LinkButton href="/clients/new" variant="secondary">
+            <LinkButton href={routes.orderNew()}>Новый заказ</LinkButton>
+            <LinkButton href={routes.clientNew} variant="secondary">
               Добавить клиента
             </LinkButton>
           </>
@@ -71,7 +72,7 @@ export function OverviewDashboard() {
         <EmptyState
           title="Начните работу"
           description="Создайте клиента и первый заказ — здесь появятся показатели, последние заказы и ближайшие сроки. Пока данных нет, статистика не показывается."
-          action={<LinkButton href="/clients/new">Добавить клиента</LinkButton>}
+          action={<LinkButton href={routes.clientNew}>Добавить клиента</LinkButton>}
         />
       ) : (
         <>
@@ -114,7 +115,7 @@ export function OverviewDashboard() {
                   {stats.recentOrders.map((order) => (
                     <li key={order.id} className={styles.item}>
                       <div className={styles.itemTop}>
-                        <Link href={`/orders/${order.id}`} className={styles.itemTitle}>
+                        <Link href={routes.orderDetail(order.id)} className={styles.itemTitle}>
                           №{order.number} · {order.title}
                         </Link>
                         <Badge tone={orderStatusTone(order.status)}>
@@ -143,7 +144,7 @@ export function OverviewDashboard() {
                   {stats.dueSoonOrders.map((order) => (
                     <li key={order.id} className={styles.item}>
                       <div className={styles.itemTop}>
-                        <Link href={`/orders/${order.id}`} className={styles.itemTitle}>
+                        <Link href={routes.orderDetail(order.id)} className={styles.itemTitle}>
                           №{order.number} · {order.title}
                         </Link>
                         <Badge tone={paymentStatusTone(order.paymentStatus)}>

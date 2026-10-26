@@ -14,6 +14,7 @@ import {
   getOrderById,
   getOrderItems,
 } from "@/lib/repositories/orders";
+import { routes } from "@/lib/routes";
 
 type OrderFormPageProps = {
   mode: "create" | "edit";
@@ -63,7 +64,7 @@ export function OrderFormPage({ mode, orderId }: OrderFormPageProps) {
       <EmptyState
         title="Заказ не найден"
         description="Нельзя редактировать отсутствующую запись."
-        action={<LinkButton href="/orders">К списку заказов</LinkButton>}
+        action={<LinkButton href={routes.orders}>К списку заказов</LinkButton>}
       />
     );
   }
@@ -77,7 +78,7 @@ export function OrderFormPage({ mode, orderId }: OrderFormPageProps) {
         description="Клиент, позиции работ, скидка, сроки и статус."
         actions={
           <LinkButton
-            href={order ? `/orders/${order.id}` : "/orders"}
+            href={order ? routes.orderDetail(order.id) : routes.orders}
             variant="secondary"
           >
             Назад
