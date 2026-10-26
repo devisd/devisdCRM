@@ -4,6 +4,11 @@ declare(strict_types=1);
 
 namespace DevisCrm\Api;
 
+use DevisCrm\Api\Auth\AuthService;
+use DevisCrm\Api\Auth\PdoAuthStore;
+use DevisCrm\Api\Auth\RequestGuard;
+use DevisCrm\Api\Auth\SystemClock;
+use DevisCrm\Api\Controllers\AuthController;
 use DevisCrm\Api\Controllers\HealthController;
 use DevisCrm\Api\Exceptions\ApiException;
 use DevisCrm\Api\Exceptions\ConfigException;
@@ -32,25 +37,37 @@ final class Application
     {
         $configFile = dirname($apiRoot) . '/config/local.php';
         $db = new Db(static fn (): Config => Config::fromFile($configFile));
+        $auth = new AuthService(new PdoAuthStore(static fn (): \PDO => $db->pdo()), new SystemClock());
 
-        return new self(self::routes($db), $logger);
+        return new self(self::routes($db, $auth), $logger);
     }
 
-    public static function routes(DatabaseProbe $database): Router
+    /**
+     * Without $auth only the public health check is registered.
+     */
+    public static function routes(DatabaseProbe $database, ?AuthService $auth = null): Router
     {
-        $router = new Router();
-        $router->get('/health', new HealthController($database));
+        $router = new Router($auth === null ? null : new RequestGuard($auth));
+        $router->get('/health', new HealthController($database), public: true);
+
+        if ($auth !== null) {
+            $controller = new AuthController($auth);
+            $router->post('/auth/login', [$controller, 'login'], public: true);
+            $router->post('/auth/logout', [$controller, 'logout']);
+            $router->get('/auth/me', [$controller, 'me']);
+        }
 
         return $router;
     }
 
     /**
      * @param array<string, mixed> $server
+     * @param (callable(int): string)|null $bodyReader Defaults to php://input.
      */
-    public function handle(array $server, string $requestId): JsonResponse
+    public function handle(array $server, string $requestId, ?callable $bodyReader = null): JsonResponse
     {
         try {
-            $request = Request::fromServer($server, self::BASE_PATH);
+            $request = Request::fromServer($server, self::BASE_PATH, $bodyReader);
             $response = $this->router->dispatch($request);
         } catch (ApiException $exception) {
             $response = JsonResponse::error(

@@ -19,6 +19,9 @@ final class JsonResponse
         'X-Content-Type-Options' => 'nosniff',
     ];
 
+    /** @var list<array{0: string, 1: string}> Header lines in order; names may repeat (Set-Cookie). */
+    private array $headerLines = [];
+
     /**
      * @param array<string, mixed> $payload
      * @param array<string, string> $headers
@@ -26,8 +29,11 @@ final class JsonResponse
     private function __construct(
         private int $status,
         private array $payload,
-        private array $headers,
+        array $headers,
     ) {
+        foreach ($headers as $name => $value) {
+            $this->headerLines = self::append($this->headerLines, (string) $name, $value);
+        }
     }
 
     /**
@@ -46,10 +52,24 @@ final class JsonResponse
         return new self($status, ['ok' => false, 'error' => ['code' => $code, 'message' => $message]], $headers);
     }
 
+    /** Sets a header, replacing earlier values with the same name. */
     public function withHeader(string $name, string $value): self
     {
         $clone = clone $this;
-        $clone->headers[$name] = $value;
+        $clone->headerLines = array_values(array_filter(
+            $clone->headerLines,
+            static fn (array $line): bool => strcasecmp($line[0], $name) !== 0,
+        ));
+        $clone->headerLines = self::append($clone->headerLines, $name, $value);
+
+        return $clone;
+    }
+
+    /** Adds another header line with this name (e.g. a second Set-Cookie). */
+    public function withAddedHeader(string $name, string $value): self
+    {
+        $clone = clone $this;
+        $clone->headerLines = self::append($clone->headerLines, $name, $value);
 
         return $clone;
     }
@@ -68,11 +88,33 @@ final class JsonResponse
     }
 
     /**
+     * Last value per header name; see headerLines() for repeated headers.
+     *
      * @return array<string, string>
      */
     public function headers(): array
     {
-        return array_merge($this->headers, self::DEFAULT_HEADERS);
+        $headers = [];
+        foreach ($this->headerLines() as [$name, $value]) {
+            $headers[$name] = $value;
+        }
+
+        return $headers;
+    }
+
+    /**
+     * All header lines in sending order, including repeated names and the fixed defaults.
+     *
+     * @return list<array{0: string, 1: string}>
+     */
+    public function headerLines(): array
+    {
+        $lines = $this->headerLines;
+        foreach (self::DEFAULT_HEADERS as $name => $value) {
+            $lines[] = [$name, $value];
+        }
+
+        return $lines;
     }
 
     public function body(): string
@@ -80,17 +122,46 @@ final class JsonResponse
         return json_encode($this->payload, self::JSON_FLAGS);
     }
 
-    public function send(bool $includeBody = true): void
+    /**
+     * @param (callable(string, bool): void)|null $emitHeader Defaults to header(); replaced in tests.
+     */
+    public function send(bool $includeBody = true, ?callable $emitHeader = null): void
     {
         $body = $this->body();
+        $emitHeader ??= static function (string $line, bool $replace): void {
+            header($line, $replace);
+        };
 
         http_response_code($this->status);
-        foreach ($this->headers() as $name => $value) {
-            header($name . ': ' . $value);
+        $seen = [];
+        foreach ($this->headerLines() as [$name, $value]) {
+            $key = strtolower($name);
+            // The first line of a name replaces PHP defaults; later ones are added, not lost.
+            $emitHeader($name . ': ' . $value, !isset($seen[$key]));
+            $seen[$key] = true;
         }
 
         if ($includeBody) {
             echo $body;
         }
+    }
+
+    /**
+     * @param list<array{0: string, 1: string}> $lines
+     * @return list<array{0: string, 1: string}>
+     */
+    private static function append(array $lines, string $name, string $value): array
+    {
+        foreach (array_keys(self::DEFAULT_HEADERS) as $fixed) {
+            if (strcasecmp($fixed, $name) === 0) {
+                return $lines;
+            }
+        }
+        if (preg_match('/[\r\n]/', $name . $value) === 1) {
+            throw new \InvalidArgumentException('Header names and values must not contain line breaks');
+        }
+        $lines[] = [$name, $value];
+
+        return $lines;
     }
 }
