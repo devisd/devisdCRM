@@ -20,9 +20,27 @@ function assertFiniteNonNegativeInteger(
   if (value < 0) {
     throw new MoneyError(`${label}: не может быть отрицательным`);
   }
+  if (!Number.isSafeInteger(value)) {
+    throw new MoneyError(`${label}: слишком большая сумма`);
+  }
 }
 
-/** Line total in kopecks: quantity × unit price, rounded to nearest kopeck. */
+/** quantity = digits × 10^exponent, in the decimal notation String(quantity) prints. */
+function decimalParts(quantity: number): { digits: string; exponent: number } {
+  const match = /^(\d+)(?:\.(\d+))?(?:e([+-]\d+))?$/.exec(String(quantity));
+  if (!match) {
+    throw new MoneyError("Количество должно быть больше нуля");
+  }
+  const fraction = match[2] ?? "";
+  return { digits: match[1] + fraction, exponent: Number(match[3] ?? 0) - fraction.length };
+}
+
+/**
+ * Line total in kopecks: quantity × unit price, rounded to the nearest kopeck, halves up.
+ * The quantity is taken as the decimal number it prints as (1.005, not the binary
+ * 1.00499999999999989…) and multiplied exactly, so 1.005 × 100 = 100.5 → 101.
+ * The same rule is implemented in api/src/Orders/Money.php (shared cases: money.cases.json).
+ */
 export function calcLineTotalMinor(
   quantity: number,
   unitPriceMinor: number,
@@ -32,12 +50,23 @@ export function calcLineTotalMinor(
   }
   assertFiniteNonNegativeInteger(unitPriceMinor, "Цена за единицу");
 
-  const raw = quantity * unitPriceMinor;
-  if (!Number.isFinite(raw)) {
-    throw new MoneyError("Некорректная сумма позиции");
+  const { digits, exponent } = decimalParts(quantity);
+  const product = BigInt(digits) * BigInt(unitPriceMinor);
+  let total: bigint;
+  if (exponent >= 0) {
+    total = product * BigInt(10) ** BigInt(exponent);
+  } else {
+    const divisor = BigInt(10) ** BigInt(-exponent);
+    total = product / divisor;
+    if ((product % divisor) * BigInt(2) >= divisor) {
+      total += BigInt(1);
+    }
   }
 
-  return Math.round(raw);
+  if (total > BigInt(Number.MAX_SAFE_INTEGER)) {
+    throw new MoneyError("Некорректная сумма позиции");
+  }
+  return Number(total);
 }
 
 export function calcItemsSubtotalMinor(

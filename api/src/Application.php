@@ -5,11 +5,21 @@ declare(strict_types=1);
 namespace DevisCrm\Api;
 
 use DevisCrm\Api\Auth\AuthService;
+use DevisCrm\Api\Auth\Clock;
 use DevisCrm\Api\Auth\PdoAuthStore;
 use DevisCrm\Api\Auth\RequestGuard;
 use DevisCrm\Api\Auth\SystemClock;
+use DevisCrm\Api\Clients\ClientStore;
+use DevisCrm\Api\Clients\PdoClientStore;
 use DevisCrm\Api\Controllers\AuthController;
+use DevisCrm\Api\Controllers\ClientsController;
 use DevisCrm\Api\Controllers\HealthController;
+use DevisCrm\Api\Controllers\ImportController;
+use DevisCrm\Api\Controllers\OrdersController;
+use DevisCrm\Api\Import\BackupImporter;
+use DevisCrm\Api\Import\PdoImportStore;
+use DevisCrm\Api\Orders\OrderService;
+use DevisCrm\Api\Orders\PdoOrderStore;
 use DevisCrm\Api\Exceptions\ApiException;
 use DevisCrm\Api\Exceptions\ConfigException;
 use DevisCrm\Api\Exceptions\DatabaseUnavailableException;
@@ -37,16 +47,38 @@ final class Application
     {
         $configFile = dirname($apiRoot) . '/config/local.php';
         $db = new Db(static fn (): Config => Config::fromFile($configFile));
-        $auth = new AuthService(new PdoAuthStore(static fn (): \PDO => $db->pdo()), new SystemClock());
+        $pdo = static fn (): \PDO => $db->pdo();
+        $clock = new SystemClock();
 
-        return new self(self::routes($db, $auth), $logger);
+        $clients = new PdoClientStore($pdo);
+        $orders = new PdoOrderStore($pdo);
+
+        return new self(
+            self::routes(
+                $db,
+                new AuthService(new PdoAuthStore($pdo), $clock),
+                $clients,
+                $clock,
+                $orders,
+                new BackupImporter(new PdoImportStore($pdo), $clients, $orders, $clock),
+            ),
+            $logger,
+        );
     }
 
     /**
-     * Without $auth only the public health check is registered.
+     * Without $auth only the public health check is registered; client, order and import
+     * routes also need their stores.
      */
-    public static function routes(DatabaseProbe $database, ?AuthService $auth = null): Router
-    {
+    public static function routes(
+        DatabaseProbe $database,
+        ?AuthService $auth = null,
+        ?ClientStore $clients = null,
+        ?Clock $clock = null,
+        ?PdoOrderStore $orders = null,
+        ?BackupImporter $importer = null,
+    ): Router {
+        $clock ??= new SystemClock();
         $router = new Router($auth === null ? null : new RequestGuard($auth));
         $router->get('/health', new HealthController($database), public: true);
 
@@ -55,6 +87,32 @@ final class Application
             $router->post('/auth/login', [$controller, 'login'], public: true);
             $router->post('/auth/logout', [$controller, 'logout']);
             $router->get('/auth/me', [$controller, 'me']);
+
+            if ($clients !== null) {
+                $controller = new ClientsController($clients, $clock);
+                $router->get('/clients', [$controller, 'list']);
+                $router->post('/clients', [$controller, 'create']);
+                $router->get('/clients/{id}', [$controller, 'show']);
+                $router->patch('/clients/{id}', [$controller, 'update']);
+                $router->delete('/clients/{id}', [$controller, 'delete']);
+            }
+
+            if ($orders !== null) {
+                $controller = new OrdersController(new OrderService($orders, $clock));
+                $router->get('/orders', [$controller, 'list']);
+                $router->post('/orders', [$controller, 'create']);
+                $router->get('/orders/{id}', [$controller, 'show']);
+                $router->patch('/orders/{id}', [$controller, 'update']);
+                $router->get('/orders/{id}/payments', [$controller, 'payments']);
+                $router->post('/orders/{id}/payments', [$controller, 'addPayment']);
+                $router->get('/payments', [$controller, 'allPayments']);
+            }
+
+            if ($importer !== null) {
+                $controller = new ImportController($importer);
+                $router->post('/import/preview', [$controller, 'preview']);
+                $router->post('/import', [$controller, 'import']);
+            }
         }
 
         return $router;

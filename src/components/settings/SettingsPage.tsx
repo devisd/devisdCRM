@@ -10,16 +10,31 @@ import { useDbReady } from "@/lib/hooks/useDbReady";
 import { toUserDbMessage } from "@/lib/db/errors";
 import {
   clearAllData,
+  countBackup,
   countLabel,
   downloadJsonFile,
   exportBackup,
-  importBackupFromJson,
+  readBackupJson,
+  replaceDatabaseWithBackup,
   seedDemoData,
   type BackupCounts,
 } from "@/lib/services/backupOps";
+import type { BackupRecalculation } from "@/lib/services/backup";
+import { formatRubFromMinor } from "@/lib/format/currency";
+import type { BackupFile } from "@/types";
 import styles from "./SettingsPage.module.scss";
 
 type PendingAction = "import" | "seed" | "clear" | null;
+
+type PendingImport = { backup: BackupFile; recalculation: BackupRecalculation };
+
+function recalculationWarning({ changedOrders, totalDifferenceMinor }: BackupRecalculation): string {
+  if (changedOrders === 0) {
+    return "";
+  }
+  const sign = totalDifferenceMinor > 0 ? "+" : "";
+  return ` Суммы в файле рассчитаны по прежнему правилу округления: итоги ${changedOrders} заказ(ов) будут пересчитаны, общая разница ${sign}${formatRubFromMinor(totalDifferenceMinor)}. Количества, цены, скидки и оплаты не меняются.`;
+}
 
 export function SettingsPageView() {
   const db = useDbReady();
@@ -28,7 +43,7 @@ export function SettingsPageView() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [pendingAction, setPendingAction] = useState<PendingAction>(null);
-  const [pendingImportText, setPendingImportText] = useState<string | null>(null);
+  const [pendingImport, setPendingImport] = useState<PendingImport | null>(null);
   const [importIssues, setImportIssues] = useState<string[]>([]);
 
   if (db.status === "loading") {
@@ -73,8 +88,15 @@ export function SettingsPageView() {
 
     resetMessages();
     try {
-      const text = await file.text();
-      setPendingImportText(text);
+      const result = readBackupJson(await file.text());
+      if (!result.ok) {
+        setImportIssues(
+          result.issues.slice(0, 8).map((issue) => `${issue.path}: ${issue.message}`),
+        );
+        setError("Импорт отклонён: файл некорректен. Текущая база не изменена.");
+        return;
+      }
+      setPendingImport({ backup: result.backup, recalculation: result.recalculation });
       setPendingAction("import");
     } catch {
       setError("Не удалось прочитать выбран.");
@@ -90,20 +112,11 @@ export function SettingsPageView() {
     resetMessages();
     try {
       if (pendingAction === "import") {
-        if (!pendingImportText) {
+        if (!pendingImport) {
           throw new Error("Файл импорта не выбран");
         }
-        const result = await importBackupFromJson(pendingImportText);
-        if (!result.ok) {
-          setImportIssues(
-            result.issues.slice(0, 8).map((issue) => `${issue.path}: ${issue.message}`),
-          );
-          setError(
-            "Импорт отклонён: файл некорректен. Текущая база не изменена.",
-          );
-          return;
-        }
-        setSuccess(`Импорт выполнен. Загружено: ${countLabel(result.counts)}.`);
+        const counts = await replaceDatabaseWithBackup(pendingImport.backup);
+        setSuccess(`Импорт выполнен. Загружено: ${countLabel(counts)}.`);
       }
 
       if (pendingAction === "seed") {
@@ -120,7 +133,7 @@ export function SettingsPageView() {
     } finally {
       setBusy(false);
       setPendingAction(null);
-      setPendingImportText(null);
+      setPendingImport(null);
     }
   };
 
@@ -128,8 +141,7 @@ export function SettingsPageView() {
     pendingAction === "import"
       ? {
           title: "Заменить все данные?",
-          description:
-            "Текущие клиенты, заказы и платежи будут полностью заменены данными из файла. Это действие нельзя отменить без другой резервной копии.",
+          description: `Текущие клиенты, заказы и платежи будут полностью заменены данными из файла (${pendingImport ? countLabel(countBackup(pendingImport.backup)) : ""}). Это действие нельзя отменить без другой резервной копии.${pendingImport ? recalculationWarning(pendingImport.recalculation) : ""}`,
           confirmLabel: "Импортировать и заменить",
         }
       : pendingAction === "seed"
@@ -274,7 +286,7 @@ export function SettingsPageView() {
         onCancel={() => {
           if (busy) return;
           setPendingAction(null);
-          setPendingImportText(null);
+          setPendingImport(null);
         }}
         onConfirm={() => void runConfirmedAction()}
       />

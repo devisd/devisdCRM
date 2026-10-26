@@ -18,9 +18,24 @@ export type BackupValidationIssue = {
   message: string;
 };
 
+/** Orders whose stored sums follow the previous rounding rule and will be recalculated. */
+export type BackupRecalculation = {
+  changedOrders: number;
+  /** Sum of (recalculated total − stored total) over those orders, in kopecks. */
+  totalDifferenceMinor: number;
+};
+
 export type BackupValidationResult =
-  | { ok: true; backup: BackupFile }
+  | { ok: true; backup: BackupFile; recalculation: BackupRecalculation }
   | { ok: false; issues: BackupValidationIssue[] };
+
+/**
+ * Line total of backups made before the exact decimal rule (money.ts): Math.round of the
+ * binary product. Only used to recognise such stored sums, never to compute new ones.
+ */
+function previousRuleLineTotalMinor(quantity: number, unitPriceMinor: number): number {
+  return Math.round(quantity * unitPriceMinor);
+}
 
 function uniqueIds(ids: string[], label: string): BackupValidationIssue[] {
   const seen = new Set<string>();
@@ -39,8 +54,12 @@ function uniqueIds(ids: string[], label: string): BackupValidationIssue[] {
   return issues;
 }
 
-function validateArithmetic(backup: BackupFile): BackupValidationIssue[] {
+function validateArithmetic(backup: BackupFile): {
+  issues: BackupValidationIssue[];
+  recalculation: BackupRecalculation;
+} {
   const issues: BackupValidationIssue[] = [];
+  const recalculation: BackupRecalculation = { changedOrders: 0, totalDifferenceMinor: 0 };
   const itemsByOrder = new Map<string, OrderItem[]>();
 
   for (const item of backup.data.orderItems) {
@@ -66,10 +85,13 @@ function validateArithmetic(backup: BackupFile): BackupValidationIssue[] {
       continue;
     }
 
+    let previousRuleSubtotal = 0;
     for (const item of items) {
       try {
         const expected = calcLineTotalMinor(item.quantity, item.unitPriceMinor);
-        if (item.lineTotalMinor !== expected) {
+        const previous = previousRuleLineTotalMinor(item.quantity, item.unitPriceMinor);
+        previousRuleSubtotal += previous;
+        if (item.lineTotalMinor !== expected && item.lineTotalMinor !== previous) {
           issues.push({
             path: `orderItems.${item.id}`,
             message: `Неверная сумма позиции: ожидалось ${expected}, получено ${item.lineTotalMinor}`,
@@ -94,10 +116,15 @@ function validateArithmetic(backup: BackupFile): BackupValidationIssue[] {
       );
       const expectedTotal = calcOrderTotalMinor(subtotal, order.discountMinor);
       if (order.totalMinor !== expectedTotal) {
-        issues.push({
-          path: `orders.${order.id}.totalMinor`,
-          message: `Неверный итог заказа: ожидалось ${expectedTotal}, получено ${order.totalMinor}`,
-        });
+        if (order.totalMinor === previousRuleSubtotal - order.discountMinor) {
+          recalculation.changedOrders += 1;
+          recalculation.totalDifferenceMinor += expectedTotal - order.totalMinor;
+        } else {
+          issues.push({
+            path: `orders.${order.id}.totalMinor`,
+            message: `Неверный итог заказа: ожидалось ${expectedTotal}, получено ${order.totalMinor}`,
+          });
+        }
       }
 
       const payments = paymentsByOrder.get(order.id) ?? [];
@@ -112,7 +139,7 @@ function validateArithmetic(backup: BackupFile): BackupValidationIssue[] {
       if (expectedPaid > expectedTotal) {
         issues.push({
           path: `orders.${order.id}`,
-          message: "Сумма оплат превышает итог заказа",
+          message: "Сумма оплат превышает пересчитанный итог заказа",
         });
       }
     } catch (error) {
@@ -124,7 +151,7 @@ function validateArithmetic(backup: BackupFile): BackupValidationIssue[] {
     }
   }
 
-  return issues;
+  return { issues, recalculation };
 }
 
 function validateRelations(backup: BackupFile): BackupValidationIssue[] {
@@ -187,6 +214,7 @@ export function validateBackupPayload(payload: unknown): BackupValidationResult 
   }
 
   const backup = parsed.data;
+  const arithmetic = validateArithmetic(backup);
   const issues: BackupValidationIssue[] = [
     ...uniqueIds(
       backup.data.clients.map((client) => client.id),
@@ -205,14 +233,14 @@ export function validateBackupPayload(payload: unknown): BackupValidationResult 
       "payments",
     ),
     ...validateRelations(backup),
-    ...validateArithmetic(backup),
+    ...arithmetic.issues,
   ];
 
   if (issues.length > 0) {
     return { ok: false, issues };
   }
 
-  return { ok: true, backup };
+  return { ok: true, backup, recalculation: arithmetic.recalculation };
 }
 
 export function buildBackupFilename(date = new Date()): string {

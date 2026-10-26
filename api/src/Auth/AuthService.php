@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace DevisCrm\Api\Auth;
 
 use DevisCrm\Api\Exceptions\ApiException;
+use DevisCrm\Api\Uuid;
 
 /**
  * Owner login, server-side sessions and brute-force throttling.
@@ -79,7 +80,7 @@ final class AuthService
 
         $token = self::newToken();
         $session = new AuthSession(
-            self::newUuid(),
+            Uuid::v4(),
             $user->id,
             $user->login,
             bin2hex(random_bytes(32)),
@@ -176,15 +177,5 @@ final class AuthService
     private static function newToken(): string
     {
         return rtrim(strtr(base64_encode(random_bytes(32)), '+/', '-_'), '=');
-    }
-
-    private static function newUuid(): string
-    {
-        $bytes = random_bytes(16);
-        $bytes[6] = chr((ord($bytes[6]) & 0x0f) | 0x40);
-        $bytes[8] = chr((ord($bytes[8]) & 0x3f) | 0x80);
-        $hex = bin2hex($bytes);
-
-        return sprintf('%s-%s-%s-%s-%s', substr($hex, 0, 8), substr($hex, 8, 4), substr($hex, 12, 4), substr($hex, 16, 4), substr($hex, 20));
     }
 }

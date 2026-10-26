@@ -1,0 +1,74 @@
+# CI: tests, checks, production build and the REG.RU release set as an artifact.
+# Nothing here connects to the hosting; deploying is .github/workflows/deploy-reg-ru.yml.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [feature/online-migration]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  api-tests:
+    name: PHP API tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      # The hosting runs PHP 8.3; pdo_sqlite runs the SQL tests (MySQL itself is not used).
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.3"
+          extensions: pdo, pdo_sqlite, pdo_mysql
+          coverage: none
+          tools: none
+
+      - name: Run api/tests/run.php
+        run: php api/tests/run.php | tee api-tests.log
+
+      # A skipped test would mean missing pdo_sqlite; that must fail CI, not pass silently.
+      - name: Require that no API test was skipped
+        run: grep -Eq '^[0-9]+ tests, 0 failed, 0 skipped$' api-tests.log
+
+  release:
+    name: Frontend checks and release set
+    needs: api-tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+      - run: npm run test
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run build
+
+      - name: Assemble release/reg-ru
+        run: node scripts/assemble-release.mjs
+
+      - name: Verify the release set
+        run: node scripts/verify-release.mjs release/reg-ru
+
+      - name: Upload artifact reg-ru-release
+        uses: actions/upload-artifact@v4
+        with:
+          name: reg-ru-release
+          path: release/reg-ru/
+          # api/.htaccess is a hidden file and must be part of the artifact.
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 30

@@ -103,3 +103,41 @@ describe("import validation gate", () => {
     expect(result.ok).toBe(true);
   });
 });
+
+describe("backups made with the previous rounding rule", () => {
+  it("are accepted, reported and recalculated without touching the source data", () => {
+    const backup = sampleBackup();
+    // Previous rule: Math.round(1.005 × 100) = 100; the current exact rule gives 101.
+    Object.assign(backup.data.orderItems[0], { quantity: 1.005, unitPriceMinor: 100, lineTotalMinor: 100 });
+    Object.assign(backup.data.orders[0], { totalMinor: 100, paidMinor: 40 });
+    backup.data.payments[0].amountMinor = 40;
+    const source = structuredClone(backup);
+
+    const result = validateBackupPayload(backup);
+    expect(result.ok && result.recalculation).toEqual({ changedOrders: 1, totalDifferenceMinor: 1 });
+
+    const prepared = prepareBackupEntities(backup);
+    expect(prepared.orderItems[0]).toEqual({ ...source.data.orderItems[0], lineTotalMinor: 101 });
+    expect(prepared.orders[0]).toEqual({ ...source.data.orders[0], totalMinor: 101 });
+    expect(prepared.clients).toEqual(source.data.clients);
+    expect(prepared.payments).toEqual(source.data.payments);
+    expect(prepared.nextOrderNumber).toBe(8);
+  });
+
+  it("are rejected when the payments exceed the recalculated total", () => {
+    const backup = sampleBackup();
+    // 3 × 0.16666666666666666: previous rule Math.round(0.5) = 1, exact rule 0.49999999999999998 → 0.
+    Object.assign(backup.data.orderItems[0], { quantity: 1 / 6, unitPriceMinor: 3, lineTotalMinor: 1 });
+    Object.assign(backup.data.orders[0], { totalMinor: 1, paidMinor: 1 });
+    backup.data.payments[0].amountMinor = 1;
+
+    const result = validateBackupPayload(backup);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.issues).toContainEqual({
+        path: `orders.${orderId}`,
+        message: "Сумма оплат превышает пересчитанный итог заказа",
+      });
+    }
+  });
+});

@@ -44,9 +44,16 @@ function validateLogin(string $login): ?string
     return null;
 }
 
-/** Argon2id when available, otherwise PHP's default algorithm (bcrypt). */
-function chooseAlgorithm(): string
+/**
+ * Argon2id when available, otherwise PHP's default algorithm (bcrypt). With $bcrypt (option
+ * --bcrypt) always bcrypt: every PHP verifies it, while Argon2id hashes made on this computer
+ * verify only on a server whose PHP supports Argon2id as well.
+ */
+function chooseAlgorithm(bool $bcrypt = false): string
 {
+    if ($bcrypt) {
+        return PASSWORD_BCRYPT;
+    }
     if (defined('PASSWORD_ARGON2ID') && in_array(PASSWORD_ARGON2ID, password_algos(), true)) {
         return PASSWORD_ARGON2ID;
     }
@@ -206,8 +213,9 @@ function main(array $argv): int
     $password = '';
     $confirmation = '';
     try {
-        if (count($argv) > 1) {
-            throw new ToolError('this tool takes no arguments; the password is read interactively with hidden input');
+        $bcrypt = array_slice($argv, 1) === ['--bcrypt'];
+        if (count($argv) > 1 && !$bcrypt) {
+            throw new ToolError('this tool takes no arguments other than --bcrypt; the password is read interactively with hidden input');
         }
         if (!function_exists('stream_isatty') || !stream_isatty(STDIN)) {
             throw new ToolError('standard input is not an interactive terminal; hidden input is impossible, so nothing is read');
@@ -220,7 +228,7 @@ function main(array $argv): int
             throw new ToolError($loginError);
         }
 
-        $algorithm = chooseAlgorithm();
+        $algorithm = chooseAlgorithm($bcrypt);
         $password = readHiddenLine('Password (hidden): ');
         $passwordError = validatePassword($password, $algorithm);
         if ($passwordError !== null) {

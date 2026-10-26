@@ -1,0 +1,61 @@
+{
+  "lineTotals": [
+    { "quantity": 1.005, "unitPriceMinor": 100, "expected": 101 },
+    { "quantity": 1.005, "unitPriceMinor": 1, "expected": 1 },
+    { "quantity": 15, "unitPriceMinor": 50000, "expected": 750000 },
+    { "quantity": 3, "unitPriceMinor": 3333, "expected": 9999 },
+    { "quantity": 1.5, "unitPriceMinor": 10001, "expected": 15002 },
+    { "quantity": 1.5, "unitPriceMinor": 333, "expected": 500 },
+    { "quantity": 0.145, "unitPriceMinor": 100, "expected": 15 },
+    { "quantity": 2.675, "unitPriceMinor": 100, "expected": 268 },
+    { "quantity": 1.15, "unitPriceMinor": 100, "expected": 115 },
+    { "quantity": 4.35, "unitPriceMinor": 100, "expected": 435 },
+    { "quantity": 1.004, "unitPriceMinor": 100, "expected": 100 },
+    { "quantity": 1.006, "unitPriceMinor": 100, "expected": 101 },
+    { "quantity": 1.0049999, "unitPriceMinor": 100, "expected": 100 },
+    { "quantity": 0.49999999999999994, "unitPriceMinor": 1, "expected": 0 },
+    { "quantity": 0.5, "unitPriceMinor": 1, "expected": 1 },
+    { "quantity": 0.1, "unitPriceMinor": 3, "expected": 0 },
+    { "quantity": 0.1, "unitPriceMinor": 5, "expected": 1 },
+    { "quantity": 2, "unitPriceMinor": 0, "expected": 0 },
+    { "quantity": 0.001, "unitPriceMinor": 1, "expected": 0 },
+    { "quantity": 0.005, "unitPriceMinor": 100, "expected": 1 },
+    { "quantity": 1e-7, "unitPriceMinor": 5000000, "expected": 1 },
+    { "quantity": 5e-324, "unitPriceMinor": 9007199254740991, "expected": 0 },
+    { "quantity": 1, "unitPriceMinor": 9007199254740991, "expected": 9007199254740991 },
+    { "quantity": 2, "unitPriceMinor": 4503599627370495, "expected": 9007199254740990 },
+    { "quantity": 0.5, "unitPriceMinor": 9007199254740991, "expected": 4503599627370496 },
+    { "quantity": 1.25, "unitPriceMinor": 7205759403792793, "expected": 9007199254740991 }
+  ],
+  "lineTotalErrors": [
+    { "quantity": 2, "unitPriceMinor": 9007199254740991 },
+    { "quantity": 1.0000000000000002, "unitPriceMinor": 9007199254740991 },
+    { "quantity": 1e21, "unitPriceMinor": 1 },
+    { "quantity": 1.7976931348623157e308, "unitPriceMinor": 1 },
+    { "quantity": 0, "unitPriceMinor": 100 },
+    { "quantity": -1, "unitPriceMinor": 100 },
+    { "quantity": 1, "unitPriceMinor": -1 },
+    { "quantity": 1, "unitPriceMinor": 9007199254740992 }
+  ],
+  "orderTotals": [
+    {
+      "items": [[3, 3333], [1.5, 333]],
+      "discountMinor": 499,
+      "expected": { "lineTotals": [9999, 500], "subtotal": 10499, "total": 10000 }
+    },
+    {
+      "items": [[1.005, 100], [0.145, 100]],
+      "discountMinor": 0,
+      "expected": { "lineTotals": [101, 15], "subtotal": 116, "total": 116 }
+    },
+    {
+      "items": [[1, 700]],
+      "discountMinor": 700,
+      "expected": { "lineTotals": [700], "subtotal": 700, "total": 0 }
+    }
+  ],
+  "orderTotalErrors": [
+    { "items": [[1, 700]], "discountMinor": 701 },
+    { "items": [[1, 9007199254740991], [1, 1]], "discountMinor": 0 }
+  ]
+}

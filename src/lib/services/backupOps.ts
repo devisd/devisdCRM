@@ -3,7 +3,7 @@ import {
   BACKUP_VERSION,
   buildBackupFilename,
   validateBackupPayload,
-  type BackupValidationIssue,
+  type BackupValidationResult,
 } from "@/lib/services/backup";
 import { getDb, META_KEYS } from "@/lib/db/database";
 import { createId } from "@/lib/id";
@@ -21,10 +21,6 @@ export type BackupCounts = {
   orderItems: number;
   payments: number;
 };
-
-export type ImportBackupResult =
-  | { ok: true; counts: BackupCounts }
-  | { ok: false; issues: BackupValidationIssue[] };
 
 /** Recalculate money fields from items/payments; do not trust imported totals. */
 export function prepareBackupEntities(backup: BackupFile): {
@@ -157,9 +153,11 @@ export async function replaceDatabaseWithBackup(
   };
 }
 
-export async function importBackupFromJson(
-  text: string,
-): Promise<ImportBackupResult> {
+/**
+ * Parses and checks a backup file without writing anything. Restoring is a separate,
+ * confirmed step: replaceDatabaseWithBackup(result.backup).
+ */
+export function readBackupJson(text: string): BackupValidationResult {
   let payload: unknown;
   try {
     payload = JSON.parse(text) as unknown;
@@ -175,13 +173,16 @@ export async function importBackupFromJson(
     };
   }
 
-  const validated = validateBackupPayload(payload);
-  if (!validated.ok) {
-    return validated;
-  }
+  return validateBackupPayload(payload);
+}
 
-  const counts = await replaceDatabaseWithBackup(validated.backup);
-  return { ok: true, counts };
+export function countBackup(backup: BackupFile): BackupCounts {
+  return {
+    clients: backup.data.clients.length,
+    orders: backup.data.orders.length,
+    orderItems: backup.data.orderItems.length,
+    payments: backup.data.payments.length,
+  };
 }
 
 export async function clearAllData(): Promise<void> {

@@ -144,9 +144,10 @@ final class Request
     /**
      * Decoded JSON object body.
      *
+     * @param int $maxBytes Larger than MAX_BODY_BYTES only for routes whose data needs it.
      * @return array<string, mixed>
      */
-    public function jsonBody(): array
+    public function jsonBody(int $maxBytes = self::MAX_BODY_BYTES): array
     {
         $contentType = strtolower(trim(explode(';', (string) $this->header('content-type'))[0]));
         if ($contentType !== 'application/json') {
@@ -154,12 +155,12 @@ final class Request
         }
 
         $declared = $this->header('content-length');
-        if ($declared !== null && (preg_match('/^\d{1,10}$/', $declared) !== 1 || (int) $declared > self::MAX_BODY_BYTES)) {
+        if ($declared !== null && (preg_match('/^\d{1,10}$/', $declared) !== 1 || (int) $declared > $maxBytes)) {
             throw self::tooLarge();
         }
 
-        $raw = ($this->bodyReader)(self::MAX_BODY_BYTES + 1);
-        if (strlen($raw) > self::MAX_BODY_BYTES) {
+        $raw = ($this->bodyReader)($maxBytes + 1);
+        if (strlen($raw) > $maxBytes) {
             throw self::tooLarge();
         }
         if (trim($raw) === '') {

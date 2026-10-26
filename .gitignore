@@ -37,6 +37,9 @@ yarn-error.log*
 /config/local.php
 /logs/
 
+# Upload set built by scripts/assemble-release.mjs
+/release/
+
 # Temporary hosting diagnostic (stage 3.8): commit only with explicit agreement (git add -f)
 /tools/hosting-diagnostic.php
 

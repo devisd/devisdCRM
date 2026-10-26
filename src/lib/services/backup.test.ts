@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { validateBackupPayload } from "./backup";
 import { MAX_UINT32, TEXT_LIMITS } from "@/lib/validation/schemas";
+import backupFixture from "./backup.fixture.json";
 
 const clientId = "11111111-1111-4111-8111-111111111111";
 const orderId = "22222222-2222-4222-8222-222222222222";
@@ -68,6 +69,14 @@ describe("validateBackupPayload", () => {
   it("accepts a valid backup", () => {
     const result = validateBackupPayload(validBackup());
     expect(result.ok).toBe(true);
+  });
+
+  it("accepts the backup fixture that api/tests/run.php imports into the server", () => {
+    expect(validateBackupPayload(backupFixture)).toEqual({
+      ok: true,
+      backup: backupFixture,
+      recalculation: { changedOrders: 0, totalDifferenceMinor: 0 },
+    });
   });
 
   it("rejects wrong app name / version", () => {
