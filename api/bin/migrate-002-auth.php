@@ -28,7 +28,7 @@ use DevisCrm\Api\Db;
 
 /** SHA-256 of the files with LF line endings, as committed. */
 const MIGRATION_SHA256 = '3261f955eb2e89963f177649136ea51d634bf5d7e114c67490fd0ba0de8df2ab';
-const CHECK_SHA256 = '3c6240b4eb4d899922fe58fe7db2d1be56838fd7418e2d65749a4803e4547c17';
+const CHECK_SHA256 = '1f1b919ef44c5223982842689d663ddcdf72696f5f065d6407eb1d9710e12f51';
 
 const AUTH_TABLES = ['users', 'sessions', 'login_attempts'];
 const LOCK_NAME = 'devis_crm_migrate_002_auth';

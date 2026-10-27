@@ -618,6 +618,8 @@ $tests['read-only check of 002_auth covers every column, index and key of the mi
         preg_match_all('/^\s+`(\w+)` [A-Z]/m', $body, $columns);
         foreach ($columns[1] as $column) {
             assertTrue(str_contains($check, "'{$table}.{$column}'"), "column {$table}.{$column} is checked");
+            $expected = preg_match("/'{$table}\\.{$column}', '([^']*)'/", $check, $m) === 1 ? $m[1] : '';
+            assertSame(7, count(explode('|', $expected)), "expected value of {$table}.{$column} has the 7 fields of the actual one");
         }
         preg_match_all('/KEY `(\w+)`/', $body, $indexes);
         foreach ($indexes[1] as $index) {
