@@ -90,10 +90,11 @@ Runner работает только из командной строки (по 
 1. **[подтверждение]** Дамп БД (шаг 1) и деплой `target=api`. До применения миграции `/api/health` работает, а вход — ещё нет
    (старый фронтенд API не использует).
 2. **[подтверждение]** ISPmanager → Планировщик (CRON) → Создать, одноразовый запуск **проверки**:
-   `/opt/php/8.3/bin/php -f /var/www/<логин>/data/devis-crm/api/bin/migrate-002-auth.php`
+   `/opt/php/8.3/bin/php /var/www/<логин>/data/devis-crm/api/bin/migrate-002-auth.php`
    (`/opt/php/8.3/bin/php` проверен через cron: `PHP 8.3.36 (cli)`; `<логин>` — логин хостинга, как в пути корня сайта в ISPmanager).
    Ожидается в `devis-crm/logs/migrate-002-auth.log`: `state=NOT_APPLIED`, `check query runs on this server`, `002_auth can be applied`.
-3. **[подтверждение]** Та же задача с ` --apply` в конце команды. Ожидается: `created table users/sessions/login_attempts`,
+3. **[подтверждение]** Та же задача с ` --apply` в конце команды. Без `-f` перед путём: с `php -f файл --apply`
+   PHP принимает `--apply` за свою опцию и скрипт не запускается (в логе ничего не появляется). Ожидается: `created table users/sessions/login_attempts`,
    `result: 002_auth applied and verified`. Повторный запуск выводит `nothing to do` и ничего не меняет.
 4. Удалить задачу из планировщика.
 

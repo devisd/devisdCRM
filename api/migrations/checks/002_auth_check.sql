@@ -83,7 +83,7 @@ FROM (
   UNION ALL SELECT 33, 'login_attempts.attempted_at', 'datetime||3|NO|||',
          (SELECT CONCAT(DATA_TYPE, '|', COALESCE(CHARACTER_MAXIMUM_LENGTH, ''), '|', COALESCE(DATETIME_PRECISION, ''), '|', IS_NULLABLE, '|', COALESCE(COLLATION_NAME, ''), '|', IF(COLUMN_TYPE LIKE '%unsigned%', 'unsigned', ''), '|', EXTRA)
           FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'login_attempts' AND COLUMN_NAME = 'attempted_at')
-  UNION ALL SELECT 34, 'login_attempts.succeeded', 'tinyint|||NO||||',
+  UNION ALL SELECT 34, 'login_attempts.succeeded', 'tinyint|||NO|||',
          (SELECT CONCAT(DATA_TYPE, '|', COALESCE(CHARACTER_MAXIMUM_LENGTH, ''), '|', COALESCE(DATETIME_PRECISION, ''), '|', IS_NULLABLE, '|', COALESCE(COLLATION_NAME, ''), '|', IF(COLUMN_TYPE LIKE '%unsigned%', 'unsigned', ''), '|', EXTRA)
           FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'login_attempts' AND COLUMN_NAME = 'succeeded')
 
